@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# Clones a GitHub repo and indexes it into a running xgrep-server instance.
+# Clones a GitHub repo and indexes it into a running muck instance.
 #
 # ---------------------------------------------------------------------------
-# Setting up a fresh xgrep-server (Docker)
+# Setting up a fresh muck (Docker)
 # ---------------------------------------------------------------------------
-#   cd xgrep-server
-#   docker build -t xgrep-server:local .
-#   docker run -d --name xgrep-server -p 7777:7777 xgrep-server:local
+#   cd muck
+#   docker build -t muck:local .
+#   docker run -d --name muck -p 7777:7777 muck:local
 #
 # Confirm it's up:
 #   curl -s http://localhost:7777/health
 #   # => {"status":"ok","version":"0.2.0"}
 #
-# xgrep-server is purely in-memory (no volumes, no config needed) — stopping the
+# muck is purely in-memory (no volumes, no config needed) — stopping the
 # container drops everything it has indexed. To reset an existing instance, just
 # restart it:
-#   docker restart xgrep-server
+#   docker restart muck
 # ---------------------------------------------------------------------------
 #
 # Usage:
-#   ./index-github-repo.sh <github-repo-url-or-org/repo> [branch] [xgrep-base-url] [repo-id]
+#   ./index-github-repo.sh <github-repo-url-or-org/repo> [branch] [muck-base-url] [repo-id]
 #
 # Examples:
 #   ./index-github-repo.sh https://github.com/BurntSushi/ripgrep
@@ -27,7 +27,7 @@
 #   ./index-github-repo.sh momokun7/xgrep main http://localhost:7777 xgrep-upstream
 #
 # Env var overrides (same as positional args, positional args win if both given):
-#   XGREP_BASE_URL   default: http://localhost:7777
+#   MUCK_BASE_URL   default: http://localhost:7777
 #   MAX_CONCURRENCY  default: 8   (parallel file pushes)
 
 set -euo pipefail
@@ -39,7 +39,7 @@ usage() {
 
 REPO_ARG="${1:-}"
 BRANCH="${2:-}"
-XGREP_BASE_URL="${3:-${XGREP_BASE_URL:-http://localhost:7777}}"
+MUCK_BASE_URL="${3:-${MUCK_BASE_URL:-http://localhost:7777}}"
 REPO_ID_OVERRIDE="${4:-}"
 MAX_CONCURRENCY="${MAX_CONCURRENCY:-8}"
 
@@ -77,15 +77,15 @@ for cmd in git curl file; do
   fi
 done
 
-echo "Checking xgrep-server at ${XGREP_BASE_URL} ..."
-if ! curl -sf "${XGREP_BASE_URL}/health" >/dev/null; then
+echo "Checking muck at ${MUCK_BASE_URL} ..."
+if ! curl -sf "${MUCK_BASE_URL}/health" >/dev/null; then
   cat >&2 <<EOF
-xgrep-server is not reachable at ${XGREP_BASE_URL}.
+muck is not reachable at ${MUCK_BASE_URL}.
 
 Start one first:
-  cd xgrep-server
-  docker build -t xgrep-server:local .
-  docker run -d --name xgrep-server -p 7777:7777 xgrep-server:local
+  cd muck
+  docker build -t muck:local .
+  docker run -d --name muck -p 7777:7777 muck:local
 EOF
   exit 1
 fi
@@ -134,7 +134,7 @@ push_file() {
   local repo_dir="$1" repo_id="$2" base_url="$3" file="$4"
   local relpath="${file#"${repo_dir}"/}"
 
-  # Skip binaries — xgrep-server only indexes text content.
+  # Skip binaries — muck only indexes text content.
   if file -b --mime-encoding "${file}" | grep -q '^binary$'; then
     return 0
   fi
@@ -157,17 +157,17 @@ push_file() {
 export -f push_file
 
 FILE_COUNT="$(find "${CLONE_DIR}" -type f -not -path '*/.git/*' | wc -l | tr -d ' ')"
-echo "Pushing ${FILE_COUNT} files to ${XGREP_BASE_URL} (repoId=${REPO_ID}, up to ${MAX_CONCURRENCY} at a time) ..."
-export CLONE_DIR REPO_ID XGREP_BASE_URL
+echo "Pushing ${FILE_COUNT} files to ${MUCK_BASE_URL} (repoId=${REPO_ID}, up to ${MAX_CONCURRENCY} at a time) ..."
+export CLONE_DIR REPO_ID MUCK_BASE_URL
 find "${CLONE_DIR}" -type f -not -path '*/.git/*' -print0 \
-  | xargs -0 -P "${MAX_CONCURRENCY}" -n 128 bash -c 'for file do push_file "$CLONE_DIR" "$REPO_ID" "$XGREP_BASE_URL" "$file"; done' _
+  | xargs -0 -P "${MAX_CONCURRENCY}" -n 128 bash -c 'for file do push_file "$CLONE_DIR" "$REPO_ID" "$MUCK_BASE_URL" "$file"; done' _
 
 echo "Building index (name=${REPO_NAME}, version=${COMMIT_SHA:0:12}, org=${ORG}, branch=${BRANCH_NAME}) ..."
 ENCODED_NAME="$(urlencode "${REPO_NAME}")"
 ENCODED_ORG="$(urlencode "${ORG}")"
 ENCODED_BRANCH="$(urlencode "${BRANCH_NAME}")"
 BUILD_STATUS="$(curl -s -o /dev/null -w '%{http_code}' \
-  -X POST "${XGREP_BASE_URL}/v1/repos/${REPO_ID}/build?name=${ENCODED_NAME}&version=${COMMIT_SHA}&org=${ENCODED_ORG}&branch=${ENCODED_BRANCH}")"
+  -X POST "${MUCK_BASE_URL}/v1/repos/${REPO_ID}/build?name=${ENCODED_NAME}&version=${COMMIT_SHA}&org=${ENCODED_ORG}&branch=${ENCODED_BRANCH}")"
 
 if [[ "${BUILD_STATUS}" != "200" ]]; then
   echo "Build failed (HTTP ${BUILD_STATUS})" >&2
@@ -177,5 +177,5 @@ fi
 echo "Done. Indexed ~${FILE_COUNT} files from ${REPO_NAME}@${COMMIT_SHA:0:12} as repoId '${REPO_ID}'."
 echo
 echo "Try it:"
-echo "  curl -s ${XGREP_BASE_URL}/v1/index/status"
-echo "  curl -s -X POST ${XGREP_BASE_URL}/v1/search -H 'Content-Type: application/json' -d '{\"query\":\"TODO\"}'"
+echo "  curl -s ${MUCK_BASE_URL}/v1/index/status"
+echo "  curl -s -X POST ${MUCK_BASE_URL}/v1/search -H 'Content-Type: application/json' -d '{\"query\":\"TODO\"}'"

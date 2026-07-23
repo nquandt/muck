@@ -1,4 +1,4 @@
-//! `xgrep-server-local` — same search/index engine as `xgrep-server`, plus a couple of
+//! `muck-local` — same search/index engine as `muck`, plus a couple of
 //! read-only endpoints and an embedded React SPA (built from `ui/`) for a
 //! GitHub-code-search-style local dev experience. No auth of any kind — this binary is a
 //! local/dev artifact, not meant to be exposed publicly.
@@ -8,7 +8,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use rust_embed::RustEmbed;
 use std::env;
-use xgrep_server::handlers::{self, AppState};
+use muck::handlers::{self, AppState};
 
 #[derive(RustEmbed)]
 #[folder = "ui/dist/"]
@@ -42,17 +42,17 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let port: u16 = env::var("PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(7777);
-    let state = AppState { store: xgrep_server::store_from_env() };
+    let state = AppState { store: muck::store_from_env() };
 
     let extra_routes = axum::Router::new()
         .route("/v1/repos/:repo_id/file", get(handlers::get_file))
         .route("/v1/repos/:repo_id/tree", get(handlers::get_tree))
         .with_state(state.clone());
 
-    let app = xgrep_server::base_router(state).merge(extra_routes).fallback(serve_ui);
+    let app = muck::base_router(state).merge(extra_routes).fallback(serve_ui);
 
     let addr = format!("0.0.0.0:{port}");
-    tracing::info!("xgrep-server-local (embedded UI) listening on {addr}");
+    tracing::info!("muck-local (embedded UI) listening on {addr}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 

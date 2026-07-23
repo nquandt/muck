@@ -1,6 +1,6 @@
 use std::env;
-use xgrep_server::base_router;
-use xgrep_server::handlers::AppState;
+use muck::base_router;
+use muck::handlers::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -15,15 +15,15 @@ async fn main() -> anyhow::Result<()> {
 
     // In-memory by default: no filesystem, no external search library/CLI. Callers push
     // files one at a time via PUT /v1/repos/{repoId}/files, then trigger a build via
-    // POST /v1/repos/{repoId}/build. xgrep-server has no idea where content came from.
-    // Set XGREP_PERSIST_PATH to back this instance up to (and restore from) local disk —
-    // see xgrep_server::store_from_env.
-    let state = AppState { store: xgrep_server::store_from_env() };
+    // POST /v1/repos/{repoId}/build. muck has no idea where content came from.
+    // Set MUCK_PERSIST_PATH to back this instance up to (and restore from) local disk —
+    // see muck::store_from_env.
+    let state = AppState { store: muck::store_from_env() };
 
     let app = base_router(state);
 
     let addr = format!("0.0.0.0:{port}");
-    tracing::info!("xgrep-server listening on {addr}");
+    tracing::info!("muck listening on {addr}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 

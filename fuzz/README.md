@@ -3,7 +3,7 @@
 Set up the same way (`cargo-fuzz` + `libfuzzer-sys`) as
 [momokun7/xgrep](https://github.com/momokun7/xgrep)'s `rust/fuzz/` directory, but targeting
 different code: the original project's fuzz targets (`fuzz_varint`, `fuzz_posting_list`,
-`fuzz_index_reader`) exercise its on-disk binary index format, which xgrep-server doesn't
+`fuzz_index_reader`) exercise its on-disk binary index format, which muck doesn't
 have — this server is purely in-memory. Instead these target the two places arbitrary
 input actually reaches parsing/matching logic here:
 

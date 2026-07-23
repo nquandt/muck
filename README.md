@@ -1,4 +1,4 @@
-# xgrep-server
+# muck
 
 A fast, in-memory code search server with an embedded GitHub-code-search-style UI. Push
 files from any repo (GitHub, Azure DevOps, or a local checkout) into an in-memory trigram
@@ -10,29 +10,29 @@ dependencies by default. An optional local-disk backup can be enabled to survive
 
 Sometimes you just want fast full-text/regex search across a pile of repos — locally,
 in a demo, or as a lightweight internal tool — without standing up Elasticsearch/Sourcegraph
-or cloning everything into a single monolithic index. xgrep-server is a small Rust binary
+or cloning everything into a single monolithic index. muck is a small Rust binary
 you can `docker run` and start pushing files into within seconds.
 
 ## Components
 
 - `src/` — the core server (Rust/axum). Purely in-memory trigram index, own line matcher,
   no vendored search library.
-- `src/bin/local.rs` + `ui/` — `xgrep-server-local`, a build of the same server with an
+- `src/bin/local.rs` + `ui/` — `muck-local`, a build of the same server with an
   embedded React SPA (Pierre-based diff/tree viewer) for browsing and searching repos in
   a browser. Built behind the `embed-ui` Cargo feature.
 - `scripts/index-github-repo.sh` — clones a repo (GitHub URL, `org/repo` shorthand, or an
-  Azure DevOps clone URL) and pushes its files into a running xgrep-server instance.
+  Azure DevOps clone URL) and pushes its files into a running muck instance.
 
 ## Running locally
 
 ```sh
 # Plain server (no UI), matches what's deployed
-docker build -t xgrep-server:local .
-docker run -d --name xgrep-server -p 7777:7777 xgrep-server:local
+docker build -t muck:local .
+docker run -d --name muck -p 7777:7777 muck:local
 
 # With the embedded search UI
-docker build -f Dockerfile.local -t xgrep-server-local:local .
-docker run -d --name xgrep-server -p 7777:7777 xgrep-server-local:local
+docker build -f Dockerfile.local -t muck-local:local .
+docker run -d --name muck -p 7777:7777 muck-local:local
 ```
 
 Confirm it's up:
@@ -55,7 +55,7 @@ curl -s -X POST http://localhost:7777/v1/search \
   -d '{"query":"TODO"}'
 ```
 
-xgrep-server is purely in-memory — no volumes, no config. Restart the container to reset it.
+muck is purely in-memory — no volumes, no config. Restart the container to reset it.
 
 ### Filters
 
@@ -81,15 +81,15 @@ invalid glob returns `422`.
 
 ## Persistence
 
-xgrep-server is in-memory by default — a restart loses everything, and you'd need to
-re-push and rebuild every repo. Set `XGREP_PERSIST_PATH` to a file path to enable an
+muck is in-memory by default — a restart loses everything, and you'd need to
+re-push and rebuild every repo. Set `MUCK_PERSIST_PATH` to a file path to enable an
 optional local-disk backup instead:
 
 ```sh
-docker run -d --name xgrep-server -p 7777:7777 \
-  -e XGREP_PERSIST_PATH=/data/xgrep-store.bin \
-  -v xgrep-data:/data \
-  xgrep-server:local
+docker run -d --name muck -p 7777:7777 \
+  -e MUCK_PERSIST_PATH=/data/muck-store.bin \
+  -v muck-data:/data \
+  muck:local
 ```
 
 - After every `build`/`unregister` call, the full store (every repo's files + metadata) is
@@ -109,7 +109,7 @@ docker run -d --name xgrep-server -p 7777:7777 \
 
 - Rust server: `cargo build`, `cargo test` from the repo root.
 - UI: `cd ui && npm install && npm run dev` (or `npm run build` to produce the embeddable
-  `ui/dist` that `Dockerfile.local` bakes into `xgrep-server-local`).
+  `ui/dist` that `Dockerfile.local` bakes into `muck-local`).
 - Fuzz targets: see [`fuzz/README.md`](fuzz/README.md).
 
 ## Credits
@@ -125,5 +125,5 @@ credit to the original author for the core idea and design. Specifically ported 
 
 Deliberately not carried over (out of scope for a push-based, in-memory server — these are
 local-filesystem/CLI concerns better left to whatever indexes and pushes files to
-xgrep-server): file discovery/`--find`, git-awareness (`--changed`, `--since`,
+muck): file discovery/`--find`, git-awareness (`--changed`, `--since`,
 `.gitignore`), on-disk persistent/incremental indexing, the MCP server, and CLI packaging.

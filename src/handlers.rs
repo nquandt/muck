@@ -109,7 +109,7 @@ pub async fn unregister_repo(
 }
 
 /// `GET /v1/repos/{repoId}/file?path=...` — read back a file's content. Only mounted by the
-/// `xgrep-server-local` binary (see `src/bin/local.rs`); the deployed `xgrep-server` binary
+/// `muck-local` binary (see `src/bin/local.rs`); the deployed `muck` binary
 /// never routes this.
 pub async fn get_file(
     State(state): State<AppState>,
@@ -124,7 +124,7 @@ pub async fn get_file(
 }
 
 /// `GET /v1/repos/{repoId}/tree` — flat list of every pushed path. Only mounted by the
-/// `xgrep-server-local` binary.
+/// `muck-local` binary.
 pub async fn get_tree(
     State(state): State<AppState>,
     AxumPath(repo_id): AxumPath<String>,

@@ -1,18 +1,18 @@
 [package]
-name = "xgrep-server"
+name = "muck"
 version = "0.2.0"
 edition = "2021"
 
 [lib]
-name = "xgrep_server"
+name = "muck"
 path = "src/lib.rs"
 
 [[bin]]
-name = "xgrep-server"
+name = "muck"
 path = "src/main.rs"
 
 [[bin]]
-name = "xgrep-server-local"
+name = "muck-local"
 path = "src/bin/local.rs"
 required-features = ["embed-ui"]
 

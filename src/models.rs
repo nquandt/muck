@@ -55,9 +55,9 @@ pub struct SearchResult {
     #[serde(rename = "blobSha")]
     pub blob_sha: String,
     /// Caller-supplied grouping label (e.g. a GitHub owner or Azure DevOps project) — opaque
-    /// to xgrep-server, surfaced for facet filtering/display only.
+    /// to muck, surfaced for facet filtering/display only.
     pub org: String,
-    /// Caller-supplied branch name indexed — opaque to xgrep-server, same as `org`.
+    /// Caller-supplied branch name indexed — opaque to muck, same as `org`.
     pub branch: String,
 }
 
@@ -83,7 +83,7 @@ pub struct IndexedRepo {
     pub repo_id: String,
     #[serde(rename = "repoName")]
     pub repo_name: String,
-    /// Caller-supplied version/revision tag (e.g. a git commit sha) — opaque to xgrep-server.
+    /// Caller-supplied version/revision tag (e.g. a git commit sha) — opaque to muck.
     pub version: String,
     pub org: String,
     pub branch: String,
@@ -105,13 +105,13 @@ pub struct HealthResponse {
 
 /// Query params for `PUT|DELETE /v1/repos/{repoId}/files?path=...` — the request body of a
 /// PUT is the file's raw bytes. Pushed one file at a time by the caller, so a full
-/// clone/checkout is never needed on the xgrep-server side.
+/// clone/checkout is never needed on the muck side.
 #[derive(Debug, Deserialize)]
 pub struct FilePathQuery {
     pub path: String,
 }
 
-/// Response for `GET /v1/repos/{repoId}/file?path=...` — used only by the `xgrep-server-local`
+/// Response for `GET /v1/repos/{repoId}/file?path=...` — used only by the `muck-local`
 /// UI variant. `content` is omitted (left `None`) when the file looks binary.
 #[derive(Debug, Serialize)]
 pub struct FileContentResponse {
@@ -122,7 +122,7 @@ pub struct FileContentResponse {
     pub is_binary: bool,
 }
 
-/// Response for `GET /v1/repos/{repoId}/tree` — used only by the `xgrep-server-local` UI
+/// Response for `GET /v1/repos/{repoId}/tree` — used only by the `muck-local` UI
 /// variant. Flat path list; the client builds tree structure from it.
 #[derive(Debug, Serialize)]
 pub struct TreeResponse {

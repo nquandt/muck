@@ -1,7 +1,7 @@
 //! Optional local-disk backup/restore for [`crate::store::Store`], enabled by pointing the
-//! `XGREP_PERSIST_PATH` env var at a file path (see `main.rs`/`bin/local.rs`).
+//! `MUCK_PERSIST_PATH` env var at a file path (see `main.rs`/`bin/local.rs`).
 //!
-//! xgrep-server's normal operating mode is purely in-memory — this exists only so a single
+//! muck's normal operating mode is purely in-memory — this exists only so a single
 //! instance can survive a restart without callers having to re-push and rebuild every repo.
 //! It is deliberately single-instance, local-filesystem only: there is no locking, no
 //! multi-writer coordination, and no attempt to make the file shareable across

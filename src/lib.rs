@@ -19,19 +19,19 @@ use store::Store;
 /// source files, small enough to bound worst-case memory use per upload.
 pub const MAX_FILE_BYTES: usize = 64 * 1024 * 1024;
 
-/// Builds a `Store` per the `XGREP_PERSIST_PATH` env var: unset means purely in-memory (no
+/// Builds a `Store` per the `MUCK_PERSIST_PATH` env var: unset means purely in-memory (no
 /// disk backup/restore), set means back up to and restore from that file path on this
 /// instance's local disk (see `store::Store::new_with_persistence` and `persist`). Shared by
-/// both `xgrep-server` and `xgrep-server-local` so the two binaries behave identically here.
+/// both `muck` and `muck-local` so the two binaries behave identically here.
 pub fn store_from_env() -> Arc<Store> {
-    match std::env::var("XGREP_PERSIST_PATH") {
+    match std::env::var("MUCK_PERSIST_PATH") {
         Ok(path) if !path.trim().is_empty() => Store::new_with_persistence(path.into()),
         _ => Arc::new(Store::new()),
     }
 }
 
-/// The route set shipped in the deployed `xgrep-server` binary. Shared with the
-/// `xgrep-server-local` binary (see `src/bin/local.rs`), which layers additional read-only
+/// The route set shipped in the deployed `muck` binary. Shared with the
+/// `muck-local` binary (see `src/bin/local.rs`), which layers additional read-only
 /// endpoints and static UI serving on top of this same router.
 pub fn base_router(state: AppState) -> Router {
     Router::new()

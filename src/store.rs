@@ -28,12 +28,12 @@ pub struct RepoData {
 pub type RepoMap = Arc<RwLock<HashMap<String, RepoData>>>;
 
 /// The whole indexing engine: an in-memory, per-repo file store plus an on-demand trigram
-/// index. Built from scratch for xgrep-server — not a wrapper around an external search
+/// index. Built from scratch for muck — not a wrapper around an external search
 /// library or CLI tool. Storage is pure heap memory (Bytes/HashMap); the only thing that
 /// ever touches disk is the optional backup file described on `persist_path`.
 pub struct Store {
     pub repos: RepoMap,
-    /// Set from the `XGREP_PERSIST_PATH` env var. When set, the store's full contents are
+    /// Set from the `MUCK_PERSIST_PATH` env var. When set, the store's full contents are
     /// written to this path (via [`persist::save`]) after every `build`/`unregister` call,
     /// and loaded back from it (via [`persist::load`]) on startup if the file already
     /// exists. Local filesystem only — deliberately not designed to be shared across
@@ -152,14 +152,14 @@ impl Store {
     }
 
     /// Read back a single file's raw bytes, as pushed via `put_file` — used by the
-    /// `xgrep-server-local` UI variant to render file content (no ADO/disk round-trip needed,
+    /// `muck-local` UI variant to render file content (no ADO/disk round-trip needed,
     /// the bytes are already sitting in memory here).
     pub async fn get_file(&self, repo_id: &str, path: &str) -> Option<Bytes> {
         self.repos.read().await.get(repo_id)?.files.get(path).cloned()
     }
 
     /// Flat list of every path currently pushed for a repo, in the order last built — used by
-    /// the `xgrep-server-local` UI variant to populate a file tree client-side.
+    /// the `muck-local` UI variant to populate a file tree client-side.
     pub async fn list_paths(&self, repo_id: &str) -> Option<Vec<String>> {
         let repos = self.repos.read().await;
         let repo = repos.get(repo_id)?;

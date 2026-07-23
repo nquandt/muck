@@ -1,6 +1,6 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
-use xgrep_server::trigram::TrigramIndex;
+use muck::trigram::TrigramIndex;
 
 fuzz_target!(|data: &[u8]| {
     // Split arbitrary input into documents on newlines; the last chunk doubles as the query.

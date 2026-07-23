@@ -75,7 +75,7 @@ function ResultCard({ result, codeTheme, onClick }: ResultCardProps) {
   )
 }
 
-const COLOR_MODE_STORAGE_KEY = 'xgrep-color-mode'
+const COLOR_MODE_STORAGE_KEY = 'muck-color-mode'
 
 function readStoredColorMode(): ColorMode {
   const stored = localStorage.getItem(COLOR_MODE_STORAGE_KEY)
@@ -165,7 +165,7 @@ function AppContent({ colorMode, onToggleColorMode }: { colorMode: ColorMode; on
   // pageCursors[i] is the cursor used to fetch page i (undefined for the first page);
   // pageCursors[pageIndex + 1], if present, is what advances to the next page. A cursor
   // restored from the URL becomes page 1 with no history behind it (Previous is disabled) —
-  // it's just the opaque offset xgrep-server gave out, not a real page number.
+  // it's just the opaque offset muck gave out, not a real page number.
   const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([
     initialUrlState.cursor ?? undefined,
   ])
@@ -587,7 +587,7 @@ function AppContent({ colorMode, onToggleColorMode }: { colorMode: ColorMode; on
   return (
     <div className="app">
       <header className="appHeader">
-        <h1 className="appTitle">xgrep</h1>
+        <h1 className="appTitle">muck</h1>
         <FormControl>
           <FormControl.Label visuallyHidden>Repository</FormControl.Label>
           <Select value={selectedRepoId} onChange={(event) => setSelectedRepoId(event.target.value)}>

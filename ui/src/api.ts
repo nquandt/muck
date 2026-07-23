@@ -57,7 +57,7 @@ export interface TreeResponse {
   paths: string[]
 }
 
-// Same-origin: this SPA is served by the xgrep-server-local binary itself, no base URL needed.
+// Same-origin: this SPA is served by the muck-local binary itself, no base URL needed.
 
 export async function search(
   query: string,
