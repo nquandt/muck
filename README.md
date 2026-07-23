@@ -123,6 +123,13 @@ docker run -d --name muck -p 7777:7777 \
   path/volume (or leave persistence off and re-index on restart). A shared store across
   instances would be a different, separately-designed feature.
 
+## Known limitations / in-progress work
+
+muck holds every pushed file's raw bytes in memory for as long as it runs — see
+[HANDOFF_STORAGE_OPTIMIZATION.md](HANDOFF_STORAGE_OPTIMIZATION.md) for the scoped plan to move to
+an on-disk mmap'd shard store (Zoekt-style), the benchmark evidence motivating it, and why an
+earlier "drop content after indexing" approach doesn't work given how search is implemented.
+
 ## Development
 
 - Rust server: `cargo build`, `cargo test` from the repo root.
