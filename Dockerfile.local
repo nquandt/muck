@@ -1,0 +1,32 @@
+# Local-only artifact: xgrep-server + an embedded React SPA (GitHub-code-search-style UI),
+# built behind the `embed-ui` Cargo feature. NOT used by deploy.sh/main.bicep — those still
+# build the plain `xgrep-server` image from the sibling `Dockerfile`, unchanged.
+FROM node:22-slim AS ui-build
+WORKDIR /src/ui
+COPY ui/package.json ./
+RUN npm install
+COPY ui .
+RUN npm run build
+
+FROM rust:1-slim-bookworm AS build
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+COPY --from=ui-build /src/ui/dist ./ui/dist
+RUN cargo build --release --features embed-ui --bin xgrep-server-local
+
+FROM debian:bookworm-slim
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends wget \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /src/target/release/xgrep-server-local /usr/local/bin/xgrep-server-local
+
+ENV PORT=7777
+EXPOSE 7777
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q -O- http://localhost:7777/health || exit 1
+
+ENTRYPOINT ["xgrep-server-local"]

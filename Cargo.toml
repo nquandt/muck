@@ -1,0 +1,37 @@
+[package]
+name = "xgrep-server"
+version = "0.2.0"
+edition = "2021"
+
+[lib]
+name = "xgrep_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "xgrep-server"
+path = "src/main.rs"
+
+[[bin]]
+name = "xgrep-server-local"
+path = "src/bin/local.rs"
+required-features = ["embed-ui"]
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+bytes = "1"
+regex = "1"
+glob = "0.3"
+rust-embed = { version = "8", optional = true }
+mime_guess = { version = "2", optional = true }
+
+[features]
+embed-ui = ["dep:rust-embed", "dep:mime_guess"]
+
+[profile.release]
+opt-level = 2

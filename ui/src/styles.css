@@ -1,0 +1,326 @@
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+/* Primer's theme CSS custom properties are only defined on the data-color-mode element that
+   ThemeProvider renders (and its descendants) — not on the body tag, which sits above it in
+   the tree and can't see custom properties set below it. app is that first descendant, so
+   anchor the page background/text color there. */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bgColor-default, #0d1117);
+  color: var(--fgColor-default, #e6edf3);
+}
+
+.appHeader {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--borderColor-default, #30363d);
+  background: var(--bgColor-inset, #010409);
+}
+
+.appTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.searchInput {
+  flex: 1;
+}
+
+.regexToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.errorBanner {
+  padding: 8px 16px;
+  color: var(--fgColor-danger, #f85149);
+  background: var(--bgColor-danger-muted, rgba(248, 81, 73, 0.1));
+  border-bottom: 1px solid var(--borderColor-danger-muted, rgba(248, 81, 73, 0.4));
+}
+
+.appBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* --- Sidebar: file tree (top) + facet filters (bottom), independently scrollable --- */
+
+.sidebar {
+  width: 260px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--borderColor-default, #30363d);
+  min-height: 0;
+}
+
+.treePane {
+  flex: 1 1 auto;
+  min-height: 80px;
+  overflow: auto;
+}
+
+.filtersPane {
+  flex: 0 0 auto;
+  max-height: 40%;
+  overflow: auto;
+  border-top: 1px solid var(--borderColor-default, #30363d);
+  padding: 10px 12px;
+  background: var(--bgColor-inset, #010409);
+}
+
+.filtersPaneHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fgColor-muted, #8b949e);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.filtersClear {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  color: var(--fgColor-accent, #58a6ff);
+  cursor: pointer;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  padding: 0;
+}
+
+.facetGroup {
+  margin-bottom: 12px;
+}
+
+.facetGroup:last-child {
+  margin-bottom: 0;
+}
+
+.facetGroupLabel {
+  font-size: 11px;
+  color: var(--fgColor-muted, #8b949e);
+  margin-bottom: 4px;
+}
+
+.facetRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.facetName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.facetCount {
+  font-size: 11px;
+  color: var(--fgColor-muted, #8b949e);
+}
+
+/* --- Main pane: results (cards) or file view, toggled via inline display --- */
+
+.mainPane {
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.resultsScroll {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+.resultCard {
+  border: 1px solid var(--borderColor-default, #30363d);
+  border-radius: 6px;
+  cursor: pointer;
+  overflow: hidden;
+  margin-bottom: 12px;
+  background: var(--bgColor-default, #0d1117);
+}
+
+.resultCard:hover {
+  border-color: var(--borderColor-accent-emphasis, #388bfd);
+}
+
+.resultCardHeader {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 8px 12px;
+  background: var(--bgColor-muted, #161b22);
+  border-bottom: 1px solid var(--borderColor-default, #30363d);
+}
+
+.resultRepo {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fgColor-accent, #58a6ff);
+  flex: 0 0 auto;
+}
+
+.resultOrg,
+.resultBranch {
+  font-size: 10px;
+  color: var(--fgColor-muted, #8b949e);
+  border: 1px solid var(--borderColor-muted, #21262d);
+  border-radius: 4px;
+  padding: 0 4px;
+  flex: 0 0 auto;
+}
+
+.resultPath {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resultLineBadge {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--fgColor-muted, #8b949e);
+}
+
+.resultCardCode {
+  margin: 0;
+  padding: 6px 0;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  overflow-x: auto;
+  /* Keeps cards a consistent height regardless of how many context lines a given match got
+     (matches near the top/bottom of a file get fewer) — no squished, uneven-height cards. */
+  min-height: calc(18px * 5 + 12px);
+}
+
+.resultCodeLine {
+  display: flex;
+  padding: 0 12px;
+  white-space: pre;
+}
+
+.resultCodeLine--match {
+  background: var(--bgColor-accent-muted, rgba(56, 139, 253, 0.15));
+}
+
+.resultLineNumber {
+  flex: 0 0 auto;
+  width: 40px;
+  color: var(--fgColor-muted, #8b949e);
+  user-select: none;
+}
+
+.resultLineText {
+  flex: 1;
+  min-width: 0;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px;
+  border-top: 1px solid var(--borderColor-default, #30363d);
+  flex: 0 0 auto;
+}
+
+.paginationPage {
+  font-size: 12px;
+  color: var(--fgColor-muted, #8b949e);
+}
+
+/* --- File view: a fixed (non-scrolling) toolbar above the independently scrolling pane --- */
+
+.fileToolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--borderColor-default, #30363d);
+  background: var(--bgColor-inset, #010409);
+}
+
+.backToResults {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  border-right: 1px solid var(--borderColor-default, #30363d);
+  background: none;
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.backToResults:hover {
+  background: var(--bgColor-muted, #161b22);
+}
+
+.fileToolbarSpacer {
+  width: 16px;
+  flex: 0 0 auto;
+}
+
+.fileToolbarPath {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--fgColor-muted, #8b949e);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filePane {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+
+.emptyState {
+  padding: 24px;
+  color: var(--fgColor-muted, #8b949e);
+}
