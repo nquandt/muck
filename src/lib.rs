@@ -5,6 +5,7 @@ pub mod handlers;
 pub mod models;
 pub mod persist;
 pub mod search;
+pub mod shard;
 pub mod store;
 pub mod trigram;
 
@@ -19,8 +20,10 @@ use store::Store;
 /// source files, small enough to bound worst-case memory use per upload.
 pub const MAX_FILE_BYTES: usize = 64 * 1024 * 1024;
 
-/// Builds a `Store` per the `MUCK_PERSIST_PATH` env var: unset means purely in-memory (no
-/// disk backup/restore), set means back up to and restore from that file path on this
+/// Builds a `Store` per the `MUCK_PERSIST_PATH` env var: unset means no disk backup/restore
+/// (a restart loses everything, though pushed file content still lives in on-disk shard
+/// files for as long as the container/host survives — see `store::shard_dir_from_env`), set
+/// means also back up full repo state to and restore it from that file path on this
 /// instance's local disk (see `store::Store::new_with_persistence` and `persist`). Shared by
 /// both `muck` and `muck-local` so the two binaries behave identically here.
 pub fn store_from_env() -> Arc<Store> {

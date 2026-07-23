@@ -1,10 +1,13 @@
 # muck
 
-A fast, in-memory code search server with an embedded GitHub-code-search-style UI. Push
-files from any repo (GitHub, Azure DevOps, or a local checkout) into an in-memory trigram
-index and search across them over HTTP — no disk, no persistent state, no external
-dependencies by default. An optional local-disk backup can be enabled to survive restarts
-(see [Persistence](#persistence)).
+A fast code search server with an embedded GitHub-code-search-style UI. Push files from any
+repo (GitHub, Azure DevOps, or a local checkout) into a trigram index and search across them
+over HTTP — no external dependencies, no separate indexing step to stand up. The trigram
+index itself is pure in-memory, using a compact flat-buffer encoding (see [Storage](#storage))
+rather than one heap allocation per distinct trigram; pushed file content lives in
+`mmap`-backed on-disk shard files rather than fully resident in the process heap, so most of a
+large corpus's memory footprint is handled by the OS page cache instead. An optional
+local-disk backup can also be enabled to survive restarts (see [Persistence](#persistence)).
 
 ## Why
 
@@ -15,8 +18,9 @@ you can `docker run` and start pushing files into within seconds.
 
 ## Components
 
-- `src/` — the core server (Rust/axum). Purely in-memory trigram index, own line matcher,
-  no vendored search library.
+- `src/` — the core server (Rust/axum). In-memory trigram index and own line matcher (no
+  vendored search library); pushed file content lives in `mmap`-backed on-disk shard files
+  (`src/shard.rs`), not the Rust heap — see [Storage](#storage).
 - `src/bin/local.rs` + `ui/` — `muck-local`, a build of the same server with an
   embedded React SPA (Pierre-based diff/tree viewer) for browsing and searching repos in
   a browser. Built behind the `embed-ui` Cargo feature.
@@ -64,7 +68,12 @@ curl -s -X POST http://localhost:7777/v1/search \
   -d '{"query":"TODO"}'
 ```
 
-muck is purely in-memory — no volumes, no config. Restart the container to reset it.
+By default muck writes pushed file content into shard files under a `muck-shards` directory
+in the container's temp dir, and no named volume, so those shards (and the search index) are
+gone when the container is removed — same practical effect as "in-memory" for a throwaway
+container, just backed by ephemeral container-local disk instead of the heap. See
+[Storage](#storage) for why, and set `MUCK_PERSIST_PATH` (see [Persistence](#persistence)) if
+you want a restart to not lose everything.
 
 ### Filters
 
@@ -88,11 +97,41 @@ muck is purely in-memory — no volumes, no config. Restart the container to res
 includes matching paths at any depth, a `!`-prefixed glob (`!*_test.rs`) excludes them. An
 invalid glob returns `422`.
 
+## Storage
+
+Pushed file content is stored in `mmap`-backed on-disk shard files (one per repo, written
+wholesale on every `build` call), not fully resident in the Rust heap. This matters for large
+corpora: a prior version of muck kept every pushed file's raw bytes in a `HashMap` for the
+life of the process, which meant resident memory grew roughly linearly with total corpus size
+and never came back down. With `mmap`, the OS page cache decides what's actually resident —
+it shrinks under memory pressure and re-faults cold files back in from disk on the next query
+that touches them, without muck doing anything special.
+
+The trigram index itself stays plain heap memory (searching it is on every query's hot path,
+so it isn't a disk/mmap candidate the way file content is), but uses a compact flat-buffer
+encoding — a single delta+varint-encoded posting buffer plus a lean offset table, not a naive
+`HashMap<[u8;3], Vec<u32>>`. That distinction is not cosmetic: a real corpus has millions of
+distinct trigrams (rails/rails, ~5,000 files: 3.47 million), and the naive form needs a
+separate heap allocation per trigram — millions of tiny allocations, most holding only a
+handful of bytes of real data but each still costing a full allocator chunk. See
+`src/trigram.rs`'s doc comment and `HANDOFF_STORAGE_OPTIMIZATION.md` for the measured
+before/after (resident memory on that same corpus: ~370MB for the naive form, ~64MB for the
+compact one).
+
+- Shard files live under `MUCK_SHARD_DIR` if set, otherwise a `muck-shards` subdirectory of
+  the OS temp dir. **This means muck always needs local disk for file content** — a fully
+  diskless environment isn't supported for that reason; the trigram index (search itself)
+  still needs no disk.
+- Shards are local-filesystem, single-instance state, same as the persistence backup below —
+  give each horizontally-scaled instance its own shard directory.
+- See `bench/` for the benchmark suite that measures this in practice (resident memory vs.
+  Zoekt/ripgrep/ag across repo sizes).
+
 ## Persistence
 
-muck is in-memory by default — a restart loses everything, and you'd need to
-re-push and rebuild every repo. Set `MUCK_PERSIST_PATH` to a file path to enable an
-optional local-disk backup instead:
+Set `MUCK_PERSIST_PATH` to a file path to also survive a full process restart (not just the
+shard files, which already survive within a single running container unless its filesystem
+is itself ephemeral — see [Storage](#storage)):
 
 ```sh
 docker run -d --name muck -p 7777:7777 \
@@ -123,12 +162,14 @@ docker run -d --name muck -p 7777:7777 \
   path/volume (or leave persistence off and re-index on restart). A shared store across
   instances would be a different, separately-designed feature.
 
-## Known limitations / in-progress work
+## Known limitations
 
-muck holds every pushed file's raw bytes in memory for as long as it runs — see
-[HANDOFF_STORAGE_OPTIMIZATION.md](HANDOFF_STORAGE_OPTIMIZATION.md) for the scoped plan to move to
-an on-disk mmap'd shard store (Zoekt-style), the benchmark evidence motivating it, and why an
-earlier "drop content after indexing" approach doesn't work given how search is implemented.
+muck's on-disk shard store (see [Storage](#storage)) needs local disk for pushed file
+content — there's no fully diskless mode. See
+[HANDOFF_STORAGE_OPTIMIZATION.md](HANDOFF_STORAGE_OPTIMIZATION.md) for the design rationale,
+the benchmark evidence that motivated it, and why an earlier "drop content after indexing"
+approach doesn't work given how search is implemented (`scan_repo` needs full text at query
+time; the trigram index is only a candidate filter, not a positional index).
 
 ## Development
 

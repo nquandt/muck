@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # Benchmarks Zoekt via the official ghcr.io/sourcegraph/zoekt image (bundles zoekt-index and
-# the `zoekt` query CLI — no local Go toolchain needed). Cold = `zoekt-index` build time
-# against the corpus. Hot = median `zoekt` CLI query latency against the built index shards.
+# zoekt-webserver — no local Go toolchain needed). Cold = `zoekt-index` build time against the
+# corpus. Hot/memory = a real `zoekt-webserver` process, queried over real HTTP — the same way
+# `run_muck.sh` measures muck, so the two tools' numbers are actually comparable.
 #
-# Runs one long-lived container for the whole corpus rather than a fresh `docker run` per
-# query — that would pay ~100-300ms of container startup every time. Hot-path repeats for a
-# given query are timed with ONE `docker exec` running a shell loop that calls `zoekt` N times
-# and times each with the container's own `date`, rather than one `docker exec` per repeat —
-# `docker exec` itself has real per-call overhead crossing the Docker Desktop VM boundary
-# (measured ~350-600ms on Windows), which would swamp the actual `zoekt` process cost and make
-# "hot" measure exec overhead instead of query latency.
-#
-# Verified against ghcr.io/sourcegraph/zoekt:latest on 2026-07-23: `zoekt-index -index <dir>
-# <src>`, `zoekt -index_dir <dir> <query>`, and `regex:<pattern>` for regex queries all behave
-# as this script assumes. See bench/ZOEKT_SETUP.md for the full walkthrough.
+# An earlier version of this script measured "hot" via the `zoekt` CLI in a docker-exec loop
+# and "memory" via an idle shell right after `zoekt-index` finished — no zoekt-webserver, no
+# HTTP round trip, at all. That undersold Zoekt's real per-query cost (no HTTP stack, no
+# request routing, an already-hot in-process index) enough to read ~0ms on every query, which
+# is not what a real Zoekt deployment (always a webserver) looks like under real traffic.
+# Confirmed manually on 2026-07-23 against rails/rails: the CLI-loop method reported 0ms
+# across the board; the same corpus against a live zoekt-webserver over HTTP measured
+# 6.7-638ms depending on query, and memory read 32MB (vs. the CLI method's 2.7MB idle-shell
+# reading). Fixed here so muck-vs-Zoekt comparisons are trustworthy inputs to real decisions,
+# not just directionally suggestive.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
@@ -25,6 +25,7 @@ REPEAT_RUNS="${BENCH_REPEAT_RUNS:-7}"
 ZOEKT_IMAGE="${ZOEKT_IMAGE:-ghcr.io/sourcegraph/zoekt:latest}"
 INDEX_DIR="${BENCH_TMP_DIR:-${SCRIPT_DIR}}/zoekt-index-${CORPUS_NAME}"
 CONTAINER="zoekt-bench-${CORPUS_NAME}"
+PORT="${ZOEKT_BENCH_PORT:-6070}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "SKIP: docker not available (needed to run ${ZOEKT_IMAGE})" >&2
@@ -45,6 +46,7 @@ INDEX_HOST_PATH="$(docker_host_path "${INDEX_DIR}")"
 # `--user root`: the image runs as a non-root `zoekt` user by default, which can't write into
 # a freshly bind-mounted host directory owned by the host user.
 MSYS_NO_PATHCONV=1 docker run -d --rm --name "${CONTAINER}" --user root \
+  -p "${PORT}:${PORT}" \
   -v "${CORPUS_HOST_PATH}:/src" \
   -v "${INDEX_HOST_PATH}:/idx" \
   --entrypoint sh \
@@ -55,16 +57,44 @@ MSYS_NO_PATHCONV=1 docker exec "${CONTAINER}" zoekt-index -index /idx /src >&2
 cold_ms=$(($(now_ms) - t0))
 echo "zoekt ${CORPUS_NAME}: index_build=${cold_ms}ms" >&2
 
-# Warm-state resource snapshot: memory is the whole container's footprint at idle right after
-# indexing (Zoekt's shards are read via mmap, so most of this is page cache the kernel is free
-# to reclaim under pressure, not committed heap the way muck's in-memory store is — worth
-# reading these two numbers as different *kinds* of memory, not directly interchangeable). Disk
-# is the index shard directory itself, measured host-side since it's a bind mount.
+# Launch zoekt-webserver as a real long-running process inside the same container (detached
+# exec), then wait for it to actually be serving — same "poll until ready" pattern
+# run_muck.sh uses for muck's own readiness check, so cold/warm boundaries are defined the
+# same way for both tools.
+MSYS_NO_PATHCONV=1 docker exec -d "${CONTAINER}" zoekt-webserver -index /idx -listen ":${PORT}"
+for _ in $(seq 1 100); do
+  if curl -sf "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.1
+done
+
+urlencode() {
+  local string="$1" i c encoded=""
+  for ((i = 0; i < ${#string}; i++)); do
+    c="${string:i:1}"
+    case "${c}" in
+      [a-zA-Z0-9.~_-]) encoded+="${c}" ;;
+      *) printf -v c '%%%02X' "'${c}"; encoded+="${c}" ;;
+    esac
+  done
+  echo "${encoded}"
+}
+
+# One real query first, same reasoning as muck's own "build" step warming its index before the
+# memory snapshot — without this, the memory reading would reflect an mmap that's been opened
+# but never actually faulted into the page cache, understating what a query workload costs.
+first_pattern=$(jq -r '.[0].pattern' "${QUERIES_FILE}")
+curl -s "http://127.0.0.1:${PORT}/search?q=$(urlencode "${first_pattern}")&num=50" >/dev/null
+
+# Warm-state resource snapshot: a live zoekt-webserver process, not an idle post-index shell —
+# this is the real "what does running Zoekt cost" number, comparable to muck's own container
+# snapshot in run_muck.sh. Disk is the index shard directory, measured host-side (bind mount).
 mem_mb=$(docker_mem_mb "${CONTAINER}")
 disk_mb=$(dir_size_mb "${INDEX_DIR}")
 echo "zoekt ${CORPUS_NAME}: mem=${mem_mb}MB disk=${disk_mb}MB" >&2
 emit_resource "zoekt" "${CORPUS_NAME}" "${mem_mb}" "${disk_mb}" \
-  "this container only runs zoekt-index/zoekt CLI calls, not zoekt-webserver - a real Zoekt deployment keeps shards mmap'd in a long-running server, so its resident memory would look different from this idle-shell snapshot"
+  "live zoekt-webserver process, warmed by one query before this snapshot"
 
 query_count=$(jq 'length' "${QUERIES_FILE}")
 for ((i = 0; i < query_count; i++)); do
@@ -75,12 +105,20 @@ for ((i = 0; i < query_count; i++)); do
   if [[ "${is_regex}" == "true" ]]; then
     q="regex:${pattern}"
   fi
+  enc=$(urlencode "${q}")
 
-  # One `docker exec` runs a loop of REPEAT_RUNS `zoekt` invocations and prints one
-  # millisecond duration per line, timed with the container's own `date +%s%N` — keeps
-  # docker-exec's own overhead out of the per-query numbers (see header comment).
-  loop_script="i=0; while [ \$i -lt ${REPEAT_RUNS} ]; do t0=\$(date +%s%N); zoekt -index_dir /idx '${q}' >/dev/null 2>&1; t1=\$(date +%s%N); echo \$(( (t1 - t0) / 1000000 )); i=\$((i + 1)); done"
-  mapfile -t durations < <(MSYS_NO_PATHCONV=1 docker exec "${CONTAINER}" sh -c "${loop_script}")
+  # Real HTTP requests to the live webserver, same curl -w timing method run_muck.sh uses for
+  # muck's own /v1/search — this is what makes the two tools' hot-path numbers comparable.
+  curl_args=()
+  for ((r = 0; r < REPEAT_RUNS; r++)); do
+    if ((r > 0)); then curl_args+=(--next); fi
+    curl_args+=(-s -o /dev/null -w '%{time_total}\n' "http://127.0.0.1:${PORT}/search?q=${enc}&num=50")
+  done
+  mapfile -t seconds < <(curl "${curl_args[@]}")
+  durations=()
+  for s in "${seconds[@]}"; do
+    durations+=("$(python3 -c "print(round(${s} * 1000))")")
+  done
   hot_ms=$(median_of "${durations[@]}")
 
   emit_result "$(jq -nc \

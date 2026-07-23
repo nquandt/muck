@@ -9,12 +9,13 @@
 //! store, not a local backup file) and should be designed separately.
 
 use crate::models::LinkTemplate;
+use crate::shard;
 use crate::store::{RepoData, RepoMap};
 use crate::trigram::TrigramIndex;
 use anyhow::Result;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -47,7 +48,10 @@ pub async fn save(repos: &RepoMap, path: &Path) -> Result<()> {
                 let files = repo
                     .file_order
                     .iter()
-                    .map(|p| (p.clone(), repo.files[p].clone()))
+                    .filter_map(|p| {
+                        repo.get_content(p)
+                            .and_then(|c| c.as_bytes().map(|b| (p.clone(), Bytes::copy_from_slice(b))))
+                    })
                     .collect();
                 (
                     id.clone(),
@@ -75,9 +79,10 @@ pub async fn save(repos: &RepoMap, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Loads a snapshot written by [`save`] and populates `repos` with it, rebuilding each
-/// repo's trigram index along the way. Returns the number of repos loaded.
-pub async fn load(repos: &RepoMap, path: &Path) -> Result<usize> {
+/// Loads a snapshot written by [`save`] and populates `repos` with it, rebuilding each repo's
+/// on-disk shard (under `shard_dir`) and trigram index along the way. Returns the number of
+/// repos loaded.
+pub async fn load(repos: &RepoMap, shard_dir: &Path, path: &Path) -> Result<usize> {
     let bytes = tokio::fs::read(path).await?;
     let snapshot: PersistedStore =
         tokio::task::spawn_blocking(move || bincode::deserialize(&bytes)).await??;
@@ -85,9 +90,17 @@ pub async fn load(repos: &RepoMap, path: &Path) -> Result<usize> {
     let count = snapshot.len();
     for (id, persisted) in snapshot {
         let file_order: Vec<String> = persisted.files.iter().map(|(p, _)| p.clone()).collect();
-        let files: HashMap<String, Bytes> = persisted.files.iter().cloned().collect();
         let docs: Vec<Bytes> = persisted.files.into_iter().map(|(_, b)| b).collect();
-        let index = tokio::task::spawn_blocking(move || TrigramIndex::build(&docs)).await?;
+        let shard_dir = shard_dir.to_path_buf();
+        let repo_id = id.clone();
+        let build_order = file_order.clone();
+        let (index, new_shard) = tokio::task::spawn_blocking(move || -> Result<_> {
+            let refs: Vec<&[u8]> = docs.iter().map(|b| b.as_ref()).collect();
+            let index = TrigramIndex::build(&refs);
+            let new_shard = shard::write_shard(&shard_dir, &repo_id, &build_order, &refs)?;
+            Ok((index, new_shard))
+        })
+        .await??;
 
         repos.write().await.insert(
             id,
@@ -97,7 +110,9 @@ pub async fn load(repos: &RepoMap, path: &Path) -> Result<usize> {
                 org: persisted.org,
                 branch: persisted.branch,
                 links: persisted.links,
-                files,
+                pending: HashMap::new(),
+                shard: Some(Arc::new(new_shard)),
+                shard_deleted: HashSet::new(),
                 file_order,
                 index: Some(Arc::new(index)),
             },

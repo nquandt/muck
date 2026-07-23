@@ -1,7 +1,6 @@
 use crate::globfilter::GlobFilter;
 use crate::models::SearchResult;
-use crate::store::RepoMap;
-use bytes::Bytes;
+use crate::store::{FileContent, RepoMap};
 use regex::RegexBuilder;
 use std::collections::HashMap;
 use std::path::Path;
@@ -15,12 +14,13 @@ pub struct RepoSnapshot {
     pub version: String,
     pub org: String,
     pub branch: String,
-    pub candidates: Vec<(String, Bytes)>,
+    pub candidates: Vec<(String, FileContent)>,
 }
 
 /// Selects, per matching repo, which files are worth scanning for `query_lower`. Runs under
-/// a single read-lock acquisition — cheap, since only `Bytes` (refcounted) and small string
-/// clones happen here; the actual line-by-line scan happens later, off the async runtime.
+/// a single read-lock acquisition — cheap, since resolving each path only clones a `Bytes`
+/// (refcounted) or an `Arc<Shard>` plus a path string; the actual line-by-line scan (including
+/// the mmap slice lookup) happens later, off the async runtime.
 pub async fn snapshot_candidates(
     repos: &RepoMap,
     allowed_repo_ids: Option<&[String]>,
@@ -59,16 +59,16 @@ pub async fn snapshot_candidates(
         };
         // `candidate_ids` (when present) is already sorted ascending by `TrigramIndex::candidates`.
 
-        let candidates: Vec<(String, Bytes)> = match candidate_ids {
+        let candidates: Vec<(String, FileContent)> = match candidate_ids {
             Some(ids) => ids
                 .into_iter()
                 .filter_map(|id| repo.file_order.get(id))
-                .filter_map(|path| repo.files.get(path).map(|content| (path.clone(), content.clone())))
+                .filter_map(|path| repo.get_content(path).map(|content| (path.clone(), content)))
                 .collect(),
             None => repo
                 .file_order
                 .iter()
-                .filter_map(|path| repo.files.get(path).map(|content| (path.clone(), content.clone())))
+                .filter_map(|path| repo.get_content(path).map(|content| (path.clone(), content)))
                 .collect(),
         };
 
@@ -134,7 +134,10 @@ pub fn scan_repo(
             }
         }
 
-        let Ok(text) = std::str::from_utf8(content) else {
+        let Some(bytes) = content.as_bytes() else {
+            continue; // path no longer resolves (e.g. shard file went missing), skip
+        };
+        let Ok(text) = std::str::from_utf8(bytes) else {
             continue; // binary/non-utf8, skip
         };
 

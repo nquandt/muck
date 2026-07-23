@@ -20,17 +20,27 @@ and [ag](https://github.com/ggreer/the_silver_searcher) (the dominant no-index C
   (Zoekt, since it's a bind mount). ripgrep/ag report `mem: —`/`disk: 0` with a note explaining
   why: they have no persistent process, so there's nothing to measure — that absence (zero
   resident cost, but a full re-scan every single search) is itself the relevant data point.
-  **Caveat**: the Zoekt container in this suite only runs one-shot `zoekt-index`/`zoekt` CLI
-  calls, not a long-running `zoekt-webserver` — so its memory number reflects an idle shell with
-  index shards sitting on disk, not the resident/mmap'd footprint a real always-on Zoekt
-  deployment would show. muck's number is the real thing: muck's own container *is* the query
-  server, holding every pushed file's bytes in memory for as long as it runs (see
-  `src/store.rs`) — so muck's and Zoekt's memory numbers aren't measuring quite the same kind of
-  "warm," and shouldn't be read as strictly apples-to-apples without that in mind.
+
+`run_zoekt.sh` runs a real `zoekt-webserver` process (not one-shot `zoekt-index`/`zoekt` CLI
+calls — an earlier version of this script did that, and its hot-path/memory numbers were not
+trustworthy; see the comment at the top of `run_zoekt.sh` for what changed and why) and queries
+it over real HTTP, the same way `run_muck.sh` queries muck's `/v1/search` — so muck's and
+Zoekt's hot-path and memory numbers are now measuring the same kind of "warm," and are fair to
+compare directly.
+
+Both tools are real long-running server processes doing real HTTP-served work here — this is
+not a scenario where memory can be traded off against a "significantly faster" story on the
+other axis; if you're deciding whether muck's memory footprint is worth it, use these numbers,
+not the CLI-based numbers from before this rewrite (any results file dated before
+2026-07-23T23:00Z UTC used the old Zoekt-CLI method and should be treated as unreliable for
+comparison purposes, though muck's own numbers in those files are still valid).
 
 All timings are millisecond-resolution. A `0` in the hot-path table isn't a bug — it means the
-query genuinely resolved in under a millisecond (index-backed lookups against a small corpus
-routinely do); it's evidence of the index paying off, not evidence something broke.
+query genuinely resolved in under a millisecond; it's evidence of the index paying off, not
+evidence something broke. It's also no longer the *typical* Zoekt result now that hot-path goes
+over real HTTP to a real webserver instead of an in-process CLI call — expect single-to-low-
+double-digit milliseconds for literal queries and can be several hundred ms for regex queries
+against a corpus the size of rails (~5,000 files), not near-zero.
 
 Both numbers matter for different reasons: cold start is what you pay once per repo/commit;
 hot-path is what every subsequent search costs. A tool can lose on cold start and still be the
