@@ -29,8 +29,8 @@ index build) — or vice versa for a CI/one-shot use case.
 Three tiers in `corpora.json`:
 
 - `small` — the ripgrep repo itself (~300 files). Fast sanity-check run.
-- `medium` (**default**) — django and redis (roughly 1,500–2,700 files each). Realistic size for
-  most day-to-day repos.
+- `medium` (**default**) — django, redis, and rails (roughly 1,500–5,000 files each). Realistic
+  size for most day-to-day repos.
 - `big` — TypeScript and dotnet/runtime (tens of thousands of files each). Opt-in — slow, and
   meant to answer "does this still hold up at scale," not for routine runs.
 
@@ -61,6 +61,18 @@ understand or troubleshoot how that works.
 `.github/workflows/benchmark.yml` runs this on `workflow_dispatch` (manual trigger, pick a tier),
 installs ripgrep/ag/zoekt/muck's own toolchain fresh each run, and publishes the markdown summary
 as the job summary plus an uploaded artifact with the raw JSON lines.
+
+## A Windows-specific caveat on muck's cold-start number
+
+On a real run against rails (~5,000 files) on Windows + Docker Desktop, muck's cold start was
+dominated by `push` time — ~150s of the ~170s total, pushing files one at a time via individual
+`curl` calls from git-bash (muck's own `build`/indexing step was ~15s, the same order as Zoekt's
+index build). That per-file push cost (~30ms/file) lines up with the same Docker-Desktop-VM
+network-boundary overhead documented in `ZOEKT_SETUP.md` and fixed in the hot-path timing — it's
+a property of pushing many small HTTP requests through that boundary on this platform, not of
+muck's own indexing speed. This hasn't been verified on Linux (e.g. in CI), where that per-call
+overhead is expected to be much smaller since there's no VM boundary to cross. Read muck's
+cold-start number with that in mind until a Linux run confirms (or refutes) it.
 
 ## Interpreting results
 

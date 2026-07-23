@@ -4,7 +4,8 @@
   ],
   "medium": [
     { "name": "django", "url": "https://github.com/django/django", "ref": "main" },
-    { "name": "redis", "url": "https://github.com/redis/redis", "ref": "unstable" }
+    { "name": "redis", "url": "https://github.com/redis/redis", "ref": "unstable" },
+    { "name": "rails", "url": "https://github.com/rails/rails", "ref": "main" }
   ],
   "big": [
     { "name": "typescript", "url": "https://github.com/microsoft/TypeScript", "ref": "main" },

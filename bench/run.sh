@@ -4,7 +4,10 @@
 # that bench/summarize.py turns into a markdown table.
 #
 # Usage:
-#   ./bench/run.sh [--tier small|medium|big] [--tools muck,zoekt,ripgrep,ag] [--out DIR]
+#   ./bench/run.sh [--tier small|medium|big] [--tools muck,zoekt,ripgrep,ag] [--repo NAME] [--out DIR]
+#
+# --repo restricts to a single named repo within the tier (matches corpora.json's "name") —
+# useful to re-run just one corpus instead of the whole tier.
 #
 # Env vars:
 #   BENCH_REPEAT_RUNS   how many times to repeat each hot-path query (default 7, median taken)
@@ -16,12 +19,14 @@ source "${SCRIPT_DIR}/lib.sh"
 TIER="medium"
 TOOLS="muck,zoekt,ripgrep,ag"
 OUT_DIR="${SCRIPT_DIR}/results"
+REPO_FILTER=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tier) TIER="$2"; shift 2 ;;
     --tools) TOOLS="$2"; shift 2 ;;
     --out) OUT_DIR="$2"; shift 2 ;;
+    --repo) REPO_FILTER="$2"; shift 2 ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -44,6 +49,9 @@ echo "Tier: ${TIER} | Tools: ${TOOLS} | Results: ${BENCH_RESULTS_FILE}" >&2
 repo_count=$(jq ".\"${TIER}\" | length" "${SCRIPT_DIR}/corpora.json")
 for ((i = 0; i < repo_count; i++)); do
   name=$(jq -r ".\"${TIER}\"[$i].name" "${SCRIPT_DIR}/corpora.json")
+  if [[ -n "${REPO_FILTER}" && "${name}" != "${REPO_FILTER}" ]]; then
+    continue
+  fi
   url=$(jq -r ".\"${TIER}\"[$i].url" "${SCRIPT_DIR}/corpora.json")
   ref=$(jq -r ".\"${TIER}\"[$i].ref" "${SCRIPT_DIR}/corpora.json")
   dest="${WORKDIR}/${name}"
