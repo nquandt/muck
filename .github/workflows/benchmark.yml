@@ -30,16 +30,8 @@ jobs:
       - name: Install ripgrep and ag
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep silversearcher-ag jq
 
-      - name: Set up Go (for Zoekt)
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Install Zoekt
-        run: |
-          go install github.com/sourcegraph/zoekt/cmd/zoekt-index@latest
-          go install github.com/sourcegraph/zoekt/cmd/zoekt@latest
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Pull Zoekt image
+        run: docker pull ghcr.io/sourcegraph/zoekt:latest
 
       - name: Run benchmarks
         env:

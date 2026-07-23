@@ -6,3 +6,4 @@ fuzz/corpus/
 fuzz/artifacts/
 bench/results/*.jsonl
 bench/results/*.md
+bench/.workdir/

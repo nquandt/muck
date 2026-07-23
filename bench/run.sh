@@ -27,7 +27,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 mkdir -p "${OUT_DIR}"
-WORKDIR="${BENCH_WORKDIR:-$(mktemp -d)}"
+# Defaults under bench/, not a bare `mktemp -d` (usually /tmp) — on Windows + Docker Desktop,
+# bind-mounting a path under /tmp into a container silently mounts empty (that path isn't in
+# Docker Desktop's shared-drive list), which the Zoekt runner depends on working correctly.
+# A repo-local dir is reliably mountable on every platform this suite runs on.
+WORKDIR="${BENCH_WORKDIR:-${SCRIPT_DIR}/.workdir}"
 mkdir -p "${WORKDIR}"
 export BENCH_TMP_DIR="${WORKDIR}"
 

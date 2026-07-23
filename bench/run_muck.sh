@@ -74,11 +74,19 @@ for ((i = 0; i < query_count; i++)); do
   is_regex=$(jq -r ".[$i].regex" "${QUERIES_FILE}")
   body=$(jq -n --arg q "${pattern}" --argjson r "${is_regex}" '{query: $q, regex: $r}')
 
-  durations=()
+  # One curl process makes REPEAT_RUNS chained requests (--next) and reports each request's
+  # own internally-measured time_total — avoids paying curl's own process-spawn cost
+  # REPEAT_RUNS times, which would inflate this the same way a fresh `docker exec` per repeat
+  # inflated Zoekt's hot numbers (see run_zoekt.sh) — same fix, same reasoning, different tool.
+  curl_args=()
   for ((r = 0; r < REPEAT_RUNS; r++)); do
-    t0=$(now_ms)
-    curl -s -X POST "http://127.0.0.1:${PORT}/v1/search" -H 'Content-Type: application/json' -d "${body}" >/dev/null
-    durations+=("$(($(now_ms) - t0))")
+    if ((r > 0)); then curl_args+=(--next); fi
+    curl_args+=(-s -o /dev/null -w '%{time_total}\n' -X POST "http://127.0.0.1:${PORT}/v1/search" -H 'Content-Type: application/json' -d "${body}")
+  done
+  mapfile -t seconds < <(curl "${curl_args[@]}")
+  durations=()
+  for s in "${seconds[@]}"; do
+    durations+=("$(python3 -c "print(round(${s} * 1000))")")
   done
   hot_ms=$(median_of "${durations[@]}")
 

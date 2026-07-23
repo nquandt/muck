@@ -39,3 +39,20 @@ emit_result() {
   local json="$1"
   echo "${json}" >>"${BENCH_RESULTS_FILE}"
 }
+
+# Converts a path to a form safe to use as the host side of `docker run/exec -v`. On git-bash
+# (MSYS), `cygpath -m` turns a POSIX-style path (e.g. `/c/repos/foo`) into the drive-letter form
+# Docker Desktop expects (`C:/repos/foo`) — without this, MSYS's own automatic path conversion
+# for `-v` arguments is unreliable (it can mis-split the `host:container` pair, or rewrite a
+# bare `/container/path` positional arg into a nonsense host path). Callers should also prefix
+# each `docker` invocation with `MSYS_NO_PATHCONV=1` (scoped to that command only — exporting it
+# for the whole script breaks other native Windows tools like `jq` that need MSYS's normal path
+# conversion) so MSYS doesn't try to "help" a second time. On Linux/macOS, `cygpath` doesn't
+# exist and the input path is already correct as-is.
+docker_host_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    echo "$1"
+  fi
+}

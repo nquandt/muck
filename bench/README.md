@@ -15,6 +15,10 @@ and [ag](https://github.com/ggreer/the_silver_searcher) (the dominant no-index C
   actually answers "does an index help" — ripgrep/ag still re-scan every file on every "hot" run,
   they just do it against warm disk cache instead of cold.
 
+All timings are millisecond-resolution. A `0` in the hot-path table isn't a bug — it means the
+query genuinely resolved in under a millisecond (index-backed lookups against a small corpus
+routinely do); it's evidence of the index paying off, not evidence something broke.
+
 Both numbers matter for different reasons: cold start is what you pay once per repo/commit;
 hot-path is what every subsequent search costs. A tool can lose on cold start and still be the
 right choice if it wins hot path by enough and hot path dominates real usage (many searches per
@@ -32,9 +36,10 @@ Three tiers in `corpora.json`:
 
 ## Running locally
 
-Requires: `docker`, `git`, `jq`, `curl`, `python3`, `node` (used only to percent-encode file
-paths when pushing to muck), and whichever of `rg`/`ag`/`zoekt`+`zoekt-index` you want included —
-any tool whose binary isn't found is skipped with a note, not a hard failure.
+Requires: `docker`, `git`, `jq`, `curl`, `python3`, and whichever of `rg`/`ag` you want included
+locally — Zoekt runs via its official Docker image (see below), no separate install needed. Any
+tool whose binary/image isn't found is skipped with a note, not a hard failure. See
+[ZOEKT_SETUP.md](ZOEKT_SETUP.md) for the full walkthrough if you're setting this up fresh.
 
 ```bash
 ./bench/run.sh                                   # medium tier, all tools available on PATH
@@ -45,17 +50,11 @@ any tool whose binary isn't found is skipped with a note, not a hard failure.
 
 Results land in `bench/results/<tier>-<timestamp>.jsonl` (raw) and `.md` (summary table).
 
-### Installing Zoekt locally
+### Zoekt
 
-```bash
-go install github.com/sourcegraph/zoekt/cmd/zoekt-index@latest
-go install github.com/sourcegraph/zoekt/cmd/zoekt@latest
-```
-
-The zoekt CLI's exact flags/query syntax can drift between versions — if `run_zoekt.sh` errors
-on `zoekt-index`/`zoekt` invocation, check `zoekt-index -h` / `zoekt -h` against what the script
-assumes (`-index <dir> <src>` and `-index_dir <dir> <query>`, with `regex:` as the query prefix
-for regex searches) and adjust.
+`run_zoekt.sh` runs Zoekt via `docker`, using the official `ghcr.io/sourcegraph/zoekt` image —
+nothing to install beyond Docker itself. See [ZOEKT_SETUP.md](ZOEKT_SETUP.md) if you want to
+understand or troubleshoot how that works.
 
 ## CI
 
