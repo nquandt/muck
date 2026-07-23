@@ -8,6 +8,7 @@
 //! horizontally-scaled instances. If that's ever needed, it's a different feature (a shared
 //! store, not a local backup file) and should be designed separately.
 
+use crate::models::LinkTemplate;
 use crate::store::{RepoData, RepoMap};
 use crate::trigram::TrigramIndex;
 use anyhow::Result;
@@ -27,6 +28,8 @@ struct PersistedRepo {
     version: String,
     org: String,
     branch: String,
+    #[serde(default)]
+    links: Vec<LinkTemplate>,
     files: Vec<(String, Bytes)>,
 }
 
@@ -53,6 +56,7 @@ pub async fn save(repos: &RepoMap, path: &Path) -> Result<()> {
                         version: repo.version.clone(),
                         org: repo.org.clone(),
                         branch: repo.branch.clone(),
+                        links: repo.links.clone(),
                         files,
                     },
                 )
@@ -92,6 +96,7 @@ pub async fn load(repos: &RepoMap, path: &Path) -> Result<usize> {
                 version: persisted.version,
                 org: persisted.org,
                 branch: persisted.branch,
+                links: persisted.links,
                 files,
                 file_order,
                 index: Some(Arc::new(index)),

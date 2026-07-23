@@ -1,3 +1,8 @@
+export interface LinkTemplate {
+  name: string
+  urlTemplate: string
+}
+
 export interface SearchResult {
   repoId: string
   repoName: string
@@ -40,6 +45,7 @@ export interface IndexedRepo {
   org: string
   branch: string
   status: string
+  links: LinkTemplate[]
 }
 
 export interface IndexStatusResponse {

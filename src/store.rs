@@ -1,3 +1,4 @@
+use crate::models::LinkTemplate;
 use crate::persist;
 use crate::trigram::TrigramIndex;
 use anyhow::Result;
@@ -20,6 +21,8 @@ pub struct RepoData {
     pub org: String,
     /// Opaque caller-supplied branch name.
     pub branch: String,
+    /// Caller-supplied "open this file elsewhere" link templates, set at build time.
+    pub links: Vec<LinkTemplate>,
     pub files: HashMap<String, Bytes>,
     pub file_order: Vec<String>,
     pub index: Option<Arc<TrigramIndex>>,
@@ -115,6 +118,7 @@ impl Store {
         version: String,
         org: String,
         branch: String,
+        links: Vec<LinkTemplate>,
     ) -> Result<()> {
         let (file_order, docs) = {
             let repos = self.repos.read().await;
@@ -135,6 +139,7 @@ impl Store {
                 repo.version = version;
                 repo.org = org;
                 repo.branch = branch;
+                repo.links = links;
                 repo.file_order = file_order;
                 repo.index = Some(Arc::new(index));
             }

@@ -29,6 +29,11 @@ body {
   background: var(--bgColor-inset, #010409);
 }
 
+.appTitleLink {
+  color: inherit;
+  text-decoration: none;
+}
+
 .appTitle {
   font-size: 16px;
   font-weight: 600;
@@ -36,8 +41,98 @@ body {
   white-space: nowrap;
 }
 
+.appHeaderSpacer {
+  flex: 1;
+}
+
 .searchInput {
   flex: 1;
+}
+
+/* --- Search page: search bar + either a repo dashboard or filters/results --- */
+
+.searchPage {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.searchBar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--borderColor-default, #30363d);
+}
+
+.searchBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.repoDashboard {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+}
+
+.repoDashboardLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fgColor-muted, #8b949e);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+.repoDashboardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.repoCard {
+  display: block;
+  border: 1px solid var(--borderColor-default, #30363d);
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: var(--bgColor-default, #0d1117);
+  color: inherit;
+  text-decoration: none;
+}
+
+.repoCard:hover {
+  border-color: var(--borderColor-accent-emphasis, #388bfd);
+}
+
+.repoCardName {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repoCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--fgColor-muted, #8b949e);
+}
+
+.repoCardMeta span {
+  border: 1px solid var(--borderColor-muted, #21262d);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.repoCardStatus--ready {
+  color: var(--fgColor-success, #3fb950);
+  border-color: var(--borderColor-success-muted, rgba(63, 185, 80, 0.4));
 }
 
 .regexToggle {
@@ -70,6 +165,8 @@ body {
   flex-direction: column;
   border-right: 1px solid var(--borderColor-default, #30363d);
   min-height: 0;
+  padding: 10px 12px 0;
+  gap: 8px;
 }
 
 .treePane {
@@ -80,9 +177,9 @@ body {
 
 .filtersPane {
   flex: 0 0 auto;
-  max-height: 40%;
+  width: 220px;
   overflow: auto;
-  border-top: 1px solid var(--borderColor-default, #30363d);
+  border-right: 1px solid var(--borderColor-default, #30363d);
   padding: 10px 12px;
   background: var(--bgColor-inset, #010409);
 }
@@ -155,6 +252,7 @@ body {
 /* --- Main pane: results (cards) or file view, toggled via inline display --- */
 
 .mainPane {
+  display: flex;
   flex: 1;
   min-width: 0;
   flex-direction: column;
@@ -220,6 +318,17 @@ body {
   flex: 0 0 auto;
   font-size: 11px;
   color: var(--fgColor-muted, #8b949e);
+}
+
+.resultExternalLink {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: var(--fgColor-muted, #8b949e);
+}
+
+.resultExternalLink:hover {
+  color: var(--fgColor-accent, #58a6ff);
 }
 
 .resultCardCode {
@@ -303,6 +412,25 @@ body {
 .fileToolbarSpacer {
   width: 16px;
   flex: 0 0 auto;
+}
+
+.fileToolbarGrow {
+  flex: 1;
+}
+
+.externalLink {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 16px;
+  font-size: 12px;
+  color: var(--fgColor-accent, #58a6ff);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.externalLink:hover {
+  text-decoration: underline;
 }
 
 .fileToolbarPath {

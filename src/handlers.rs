@@ -1,7 +1,7 @@
 use crate::globfilter::GlobFilter;
 use crate::models::{
     BuildRepoQuery, FileContentResponse, FilePathQuery, HealthResponse, IndexStatusResponse,
-    IndexedRepo, SearchFacet, SearchRequest, SearchResponse, TreeResponse,
+    IndexedRepo, LinkTemplate, SearchFacet, SearchRequest, SearchResponse, TreeResponse,
 };
 use crate::search;
 use crate::store::Store;
@@ -43,6 +43,7 @@ pub async fn index_status(State(state): State<AppState>) -> Json<IndexStatusResp
             org: repo.org.clone(),
             branch: repo.branch.clone(),
             status: if repo.index.is_some() { "ready".to_string() } else { "pending".to_string() },
+            links: repo.links.clone(),
         })
         .collect();
     let total_repos = repositories.len();
@@ -83,7 +84,12 @@ pub async fn build_repo(
     AxumPath(repo_id): AxumPath<String>,
     Query(query): Query<BuildRepoQuery>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    match state.store.build(repo_id.clone(), query.name, query.version, query.org, query.branch).await {
+    let links: Vec<LinkTemplate> = query
+        .links
+        .as_deref()
+        .and_then(|raw| serde_json::from_str(raw).ok())
+        .unwrap_or_default();
+    match state.store.build(repo_id.clone(), query.name, query.version, query.org, query.branch, links).await {
         Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "status": "ok", "repoId": repo_id }))),
         Err(error) => {
             tracing::error!(repo = %repo_id, "failed to build index: {error:#}");

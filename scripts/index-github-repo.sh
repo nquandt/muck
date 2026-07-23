@@ -166,8 +166,14 @@ echo "Building index (name=${REPO_NAME}, version=${COMMIT_SHA:0:12}, org=${ORG},
 ENCODED_NAME="$(urlencode "${REPO_NAME}")"
 ENCODED_ORG="$(urlencode "${ORG}")"
 ENCODED_BRANCH="$(urlencode "${BRANCH_NAME}")"
+
+# A single "Open in GitHub" link template — {org}/{repoName}/{branch}/{path}/{line} get
+# substituted client-side by the muck UI. Muck itself treats this as an opaque string.
+GITHUB_LINK_JSON="[{\"name\":\"Open in GitHub\",\"urlTemplate\":\"${REPO_URL%.git}/blob/{branch}/{path}#L{line}\"}]"
+ENCODED_LINKS="$(urlencode "${GITHUB_LINK_JSON}")"
+
 BUILD_STATUS="$(curl -s -o /dev/null -w '%{http_code}' \
-  -X POST "${MUCK_BASE_URL}/v1/repos/${REPO_ID}/build?name=${ENCODED_NAME}&version=${COMMIT_SHA}&org=${ENCODED_ORG}&branch=${ENCODED_BRANCH}")"
+  -X POST "${MUCK_BASE_URL}/v1/repos/${REPO_ID}/build?name=${ENCODED_NAME}&version=${COMMIT_SHA}&org=${ENCODED_ORG}&branch=${ENCODED_BRANCH}&links=${ENCODED_LINKS}")"
 
 if [[ "${BUILD_STATUS}" != "200" ]]; then
   echo "Build failed (HTTP ${BUILD_STATUS})" >&2

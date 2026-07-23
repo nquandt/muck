@@ -77,6 +77,17 @@ pub struct SearchResponse {
     pub facets: Vec<SearchFacet>,
 }
 
+/// A named "open this file elsewhere" link, supplied by the indexing caller at build time.
+/// `url_template` is a token-substitution string (not a URL itself), substituted client-side
+/// against `{org}`, `{repoName}`, `{branch}`, `{version}`, `{path}`, `{line}` — muck itself
+/// treats it as opaque and echoes it back verbatim via `/v1/index/status`.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LinkTemplate {
+    pub name: String,
+    #[serde(rename = "urlTemplate")]
+    pub url_template: String,
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct IndexedRepo {
     #[serde(rename = "repoId")]
@@ -88,6 +99,8 @@ pub struct IndexedRepo {
     pub org: String,
     pub branch: String,
     pub status: String,
+    #[serde(default)]
+    pub links: Vec<LinkTemplate>,
 }
 
 #[derive(Debug, Serialize)]
@@ -145,4 +158,10 @@ pub struct BuildRepoQuery {
     /// Opaque branch name indexed, surfaced the same way as `org`.
     #[serde(default)]
     pub branch: String,
+    /// A JSON-encoded `Vec<LinkTemplate>` (query strings don't carry nested arrays cleanly,
+    /// so it travels as a single serialized string param rather than a JSON body) — e.g.
+    /// `links=%5B%7B%22name%22%3A%22GitHub%22%2C%22urlTemplate%22%3A%22https%3A%2F%2Fgithub.com%2F%7Borg%7D%2F%7BrepoName%7D%2Fblob%2F%7Bbranch%7D%2F%7Bpath%7D%23L%7Bline%7D%22%7D%5D`.
+    /// Invalid/absent JSON is treated as no links, not an error.
+    #[serde(default)]
+    pub links: Option<String>,
 }
