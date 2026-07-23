@@ -4,3 +4,5 @@ ui/dist/
 fuzz/target/
 fuzz/corpus/
 fuzz/artifacts/
+bench/results/*.jsonl
+bench/results/*.md

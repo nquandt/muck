@@ -1,0 +1,7 @@
+[
+  { "name": "literal-common", "pattern": "TODO", "regex": false },
+  { "name": "literal-word", "pattern": "function", "regex": false },
+  { "name": "literal-short", "pattern": "fn", "regex": false },
+  { "name": "regex-date", "pattern": "[0-9]{4}-[0-9]{2}-[0-9]{2}", "regex": true },
+  { "name": "regex-word-error", "pattern": "[A-Za-z]+Error", "regex": true }
+]

@@ -1,0 +1,13 @@
+{
+  "small": [
+    { "name": "ripgrep", "url": "https://github.com/BurntSushi/ripgrep", "ref": "master" }
+  ],
+  "medium": [
+    { "name": "django", "url": "https://github.com/django/django", "ref": "main" },
+    { "name": "redis", "url": "https://github.com/redis/redis", "ref": "unstable" }
+  ],
+  "big": [
+    { "name": "typescript", "url": "https://github.com/microsoft/TypeScript", "ref": "main" },
+    { "name": "dotnet-runtime", "url": "https://github.com/dotnet/runtime", "ref": "main" }
+  ]
+}

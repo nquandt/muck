@@ -1,0 +1,62 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Corpus tier"
+        type: choice
+        options: [small, medium, big]
+        default: medium
+      tools:
+        description: "Comma-separated tool list"
+        type: string
+        default: "muck,zoekt,ripgrep,ag"
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    # `big` clones tens-of-thousands-of-files repos (TypeScript, dotnet/runtime) and builds
+    # multiple indexes — budget generously so it doesn't get killed mid-run.
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ripgrep and ag
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ripgrep silversearcher-ag jq
+
+      - name: Set up Go (for Zoekt)
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Install Zoekt
+        run: |
+          go install github.com/sourcegraph/zoekt/cmd/zoekt-index@latest
+          go install github.com/sourcegraph/zoekt/cmd/zoekt@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Run benchmarks
+        env:
+          BENCH_TIER: ${{ inputs.tier }}
+          BENCH_TOOLS: ${{ inputs.tools }}
+        run: |
+          chmod +x bench/*.sh
+          ./bench/run.sh --tier "${BENCH_TIER}" --tools "${BENCH_TOOLS}"
+
+      - name: Publish job summary
+        run: |
+          latest_md="$(ls -t bench/results/*.md | head -1)"
+          cat "${latest_md}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload raw results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ inputs.tier }}
+          path: bench/results/*.jsonl
+          if-no-files-found: warn
