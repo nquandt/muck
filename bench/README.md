@@ -14,6 +14,19 @@ and [ag](https://github.com/ggreer/the_silver_searcher) (the dominant no-index C
   same query, after the index (or page cache, for ripgrep/ag) is warm. This is the number that
   actually answers "does an index help" — ripgrep/ag still re-scan every file on every "hot" run,
   they just do it against warm disk cache instead of cold.
+- **Warm-state memory & disk**: taken once per tool+corpus right after indexing finishes and
+  before any queries run — muck and Zoekt via `docker stats` (whole-container memory) and either
+  the container's own writable disk layer (muck) or the index shard directory measured host-side
+  (Zoekt, since it's a bind mount). ripgrep/ag report `mem: —`/`disk: 0` with a note explaining
+  why: they have no persistent process, so there's nothing to measure — that absence (zero
+  resident cost, but a full re-scan every single search) is itself the relevant data point.
+  **Caveat**: the Zoekt container in this suite only runs one-shot `zoekt-index`/`zoekt` CLI
+  calls, not a long-running `zoekt-webserver` — so its memory number reflects an idle shell with
+  index shards sitting on disk, not the resident/mmap'd footprint a real always-on Zoekt
+  deployment would show. muck's number is the real thing: muck's own container *is* the query
+  server, holding every pushed file's bytes in memory for as long as it runs (see
+  `src/store.rs`) — so muck's and Zoekt's memory numbers aren't measuring quite the same kind of
+  "warm," and shouldn't be read as strictly apples-to-apples without that in mind.
 
 All timings are millisecond-resolution. A `0` in the hot-path table isn't a bug — it means the
 query genuinely resolved in under a millisecond (index-backed lookups against a small corpus

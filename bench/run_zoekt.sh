@@ -55,6 +55,17 @@ MSYS_NO_PATHCONV=1 docker exec "${CONTAINER}" zoekt-index -index /idx /src >&2
 cold_ms=$(($(now_ms) - t0))
 echo "zoekt ${CORPUS_NAME}: index_build=${cold_ms}ms" >&2
 
+# Warm-state resource snapshot: memory is the whole container's footprint at idle right after
+# indexing (Zoekt's shards are read via mmap, so most of this is page cache the kernel is free
+# to reclaim under pressure, not committed heap the way muck's in-memory store is — worth
+# reading these two numbers as different *kinds* of memory, not directly interchangeable). Disk
+# is the index shard directory itself, measured host-side since it's a bind mount.
+mem_mb=$(docker_mem_mb "${CONTAINER}")
+disk_mb=$(dir_size_mb "${INDEX_DIR}")
+echo "zoekt ${CORPUS_NAME}: mem=${mem_mb}MB disk=${disk_mb}MB" >&2
+emit_resource "zoekt" "${CORPUS_NAME}" "${mem_mb}" "${disk_mb}" \
+  "this container only runs zoekt-index/zoekt CLI calls, not zoekt-webserver - a real Zoekt deployment keeps shards mmap'd in a long-running server, so its resident memory would look different from this idle-shell snapshot"
+
 query_count=$(jq 'length' "${QUERIES_FILE}")
 for ((i = 0; i < query_count; i++)); do
   name=$(jq -r ".[$i].name" "${QUERIES_FILE}")

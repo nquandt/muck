@@ -17,6 +17,11 @@ if ! command -v rg >/dev/null 2>&1; then
   exit 0
 fi
 
+# ripgrep has no persistent process/index — there's nothing "resident" between searches to
+# measure, which is itself the relevant data point when comparing to muck/Zoekt: zero warm
+# memory, zero disk footprint, at the cost of re-scanning everything on every single search.
+emit_resource "ripgrep" "${CORPUS_NAME}" "null" "0" "no persistent process - nothing stays resident between searches"
+
 query_count=$(jq 'length' "${QUERIES_FILE}")
 for ((i = 0; i < query_count; i++)); do
   name=$(jq -r ".[$i].name" "${QUERIES_FILE}")

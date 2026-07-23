@@ -15,6 +15,10 @@ if ! command -v ag >/dev/null 2>&1; then
   exit 0
 fi
 
+# Same reasoning as run_ripgrep.sh: no persistent process/index, so no warm resident memory or
+# disk footprint to report — that absence is itself the relevant comparison point.
+emit_resource "ag" "${CORPUS_NAME}" "null" "0" "no persistent process - nothing stays resident between searches"
+
 query_count=$(jq 'length' "${QUERIES_FILE}")
 for ((i = 0; i < query_count; i++)); do
   name=$(jq -r ".[$i].name" "${QUERIES_FILE}")

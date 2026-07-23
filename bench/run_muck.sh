@@ -67,6 +67,16 @@ build_ms=$(($(now_ms) - t_build_start))
 cold_ms=$((container_ready_ms + push_ms + build_ms))
 echo "muck ${CORPUS_NAME}: container_ready=${container_ready_ms}ms push=${push_ms}ms build=${build_ms}ms total_cold=${cold_ms}ms" >&2
 
+# Warm-state resource snapshot: memory is the container's whole footprint (muck holds every
+# pushed file's raw bytes in memory — see src/store.rs — so this is a real "what did indexing
+# this corpus cost" number, not just index overhead). Disk is the container's own writable
+# layer; muck is purely in-memory by default (no MUCK_PERSIST_PATH set here), so this should be
+# near zero — that's the expected, correct result, not a measurement failure.
+mem_mb=$(docker_mem_mb "${CONTAINER}")
+disk_mb=$(docker_writable_layer_mb "${CONTAINER}")
+echo "muck ${CORPUS_NAME}: mem=${mem_mb}MB disk=${disk_mb}MB" >&2
+emit_resource "muck" "${CORPUS_NAME}" "${mem_mb}" "${disk_mb}" ""
+
 query_count=$(jq 'length' "${QUERIES_FILE}")
 for ((i = 0; i < query_count; i++)); do
   name=$(jq -r ".[$i].name" "${QUERIES_FILE}")
