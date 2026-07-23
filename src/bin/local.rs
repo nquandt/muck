@@ -1,17 +1,14 @@
 //! `xgrep-server-local` — same search/index engine as `xgrep-server`, plus a couple of
-//! read-only endpoints and an embedded React SPA (built from `xgrep-server/ui/`) for a
+//! read-only endpoints and an embedded React SPA (built from `ui/`) for a
 //! GitHub-code-search-style local dev experience. No auth of any kind — this binary is a
-//! local/dev artifact, never what `deploy.sh`/`main.bicep` ship. See
-//! `openspec/specs/ado-code-search/HANDOFF.md` and the plan that introduced this file.
+//! local/dev artifact, not meant to be exposed publicly.
 
 use axum::http::{header, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use rust_embed::RustEmbed;
 use std::env;
-use std::sync::Arc;
 use xgrep_server::handlers::{self, AppState};
-use xgrep_server::store::Store;
 
 #[derive(RustEmbed)]
 #[folder = "ui/dist/"]
@@ -45,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let port: u16 = env::var("PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(7777);
-    let state = AppState { store: Arc::new(Store::new()) };
+    let state = AppState { store: xgrep_server::store_from_env() };
 
     let extra_routes = axum::Router::new()
         .route("/v1/repos/:repo_id/file", get(handlers::get_file))

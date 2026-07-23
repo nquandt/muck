@@ -24,9 +24,10 @@ serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
-bytes = "1"
+bytes = { version = "1", features = ["serde"] }
 regex = "1"
 glob = "0.3"
+bincode = "1"
 rust-embed = { version = "8", optional = true }
 mime_guess = { version = "2", optional = true }
 

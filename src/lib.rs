@@ -3,6 +3,7 @@
 pub mod globfilter;
 pub mod handlers;
 pub mod models;
+pub mod persist;
 pub mod search;
 pub mod store;
 pub mod trigram;
@@ -11,10 +12,23 @@ use axum::extract::DefaultBodyLimit;
 use axum::routing::{delete, get, post, put};
 use axum::Router;
 use handlers::AppState;
+use std::sync::Arc;
+use store::Store;
 
 /// Individual files are pushed as a single request body — generous enough for real-world
 /// source files, small enough to bound worst-case memory use per upload.
 pub const MAX_FILE_BYTES: usize = 64 * 1024 * 1024;
+
+/// Builds a `Store` per the `XGREP_PERSIST_PATH` env var: unset means purely in-memory (no
+/// disk backup/restore), set means back up to and restore from that file path on this
+/// instance's local disk (see `store::Store::new_with_persistence` and `persist`). Shared by
+/// both `xgrep-server` and `xgrep-server-local` so the two binaries behave identically here.
+pub fn store_from_env() -> Arc<Store> {
+    match std::env::var("XGREP_PERSIST_PATH") {
+        Ok(path) if !path.trim().is_empty() => Store::new_with_persistence(path.into()),
+        _ => Arc::new(Store::new()),
+    }
+}
 
 /// The route set shipped in the deployed `xgrep-server` binary. Shared with the
 /// `xgrep-server-local` binary (see `src/bin/local.rs`), which layers additional read-only

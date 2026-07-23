@@ -1,8 +1,6 @@
 use std::env;
-use std::sync::Arc;
-use xgrep_server::handlers::AppState;
-use xgrep_server::store::Store;
 use xgrep_server::base_router;
+use xgrep_server::handlers::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -15,10 +13,12 @@ async fn main() -> anyhow::Result<()> {
 
     let port: u16 = env::var("PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(7777);
 
-    // Purely in-memory: no filesystem, no external search library/CLI. Callers push files
-    // one at a time via PUT /v1/repos/{repoId}/files, then trigger a build via
+    // In-memory by default: no filesystem, no external search library/CLI. Callers push
+    // files one at a time via PUT /v1/repos/{repoId}/files, then trigger a build via
     // POST /v1/repos/{repoId}/build. xgrep-server has no idea where content came from.
-    let state = AppState { store: Arc::new(Store::new()) };
+    // Set XGREP_PERSIST_PATH to back this instance up to (and restore from) local disk —
+    // see xgrep_server::store_from_env.
+    let state = AppState { store: xgrep_server::store_from_env() };
 
     let app = base_router(state);
 

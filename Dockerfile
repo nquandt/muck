@@ -7,8 +7,9 @@ COPY src ./src
 RUN cargo build --release
 
 # From-scratch code search engine (own trigram index, own line matcher — no vendored search
-# library). Purely in-memory: no disk, no git, no auth/credential handling of any kind —
-# content and credentials are the caller's problem; this only ever speaks HTTP.
+# library). In-memory by default (no disk, no git, no auth/credential handling of any kind —
+# content and credentials are the caller's problem; this only ever speaks HTTP), with an
+# optional local-disk backup/restore behind XGREP_PERSIST_PATH — see README.md.
 FROM debian:bookworm-slim
 WORKDIR /app
 

@@ -6,8 +6,9 @@ use std::collections::{HashMap, HashSet};
 /// to get a small candidate set before the actual line-by-line match runs, instead of
 /// scanning every file for every query.
 ///
-/// Deliberately not backed by any external search crate — see
-/// openspec/specs/ado-code-search/HANDOFF.md for why xgrep-server owns this outright.
+/// Deliberately not backed by any external search crate — a from-scratch implementation
+/// keeps the whole search path (index + line matcher) small, dependency-free, and easy to
+/// reason about.
 #[derive(Debug, Default)]
 pub struct TrigramIndex {
     postings: HashMap<[u8; 3], HashSet<u32>>,

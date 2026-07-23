@@ -17,11 +17,19 @@ pub struct AppState {
     pub store: Arc<Store>,
 }
 
-pub async fn health() -> Json<HealthResponse> {
-    Json(HealthResponse {
-        status: "ok",
-        version: env!("CARGO_PKG_VERSION"),
-    })
+/// Returns `503` while a persisted snapshot is still loading at startup (see
+/// `Store::new_with_persistence`) — nothing is served as "ok" until that load attempt
+/// finishes, so a load balancer/orchestrator won't route traffic to a half-populated
+/// instance. Always `200` when disk persistence is disabled.
+pub async fn health(State(state): State<AppState>) -> (StatusCode, Json<HealthResponse>) {
+    if state.store.ready.load(std::sync::atomic::Ordering::SeqCst) {
+        (StatusCode::OK, Json(HealthResponse { status: "ok", version: env!("CARGO_PKG_VERSION") }))
+    } else {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(HealthResponse { status: "loading", version: env!("CARGO_PKG_VERSION") }),
+        )
+    }
 }
 
 pub async fn index_status(State(state): State<AppState>) -> Json<IndexStatusResponse> {

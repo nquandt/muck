@@ -1,14 +1,17 @@
+use crate::persist;
 use crate::trigram::TrigramIndex;
 use anyhow::Result;
 use bytes::Bytes;
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// A repo's working set: files pushed one at a time, plus the trigram index built from them
-/// (rebuilt wholesale on each `build` call — see HANDOFF.md for the incremental-index
-/// follow-up this deliberately defers). Never touches disk; `files` is the only copy of the
-/// content that exists anywhere in this process.
+/// (rebuilt wholesale on each `build` call — an incremental index is a possible future
+/// optimization, not implemented). `files` is the only copy of the content that exists
+/// anywhere in this process, unless optional disk persistence is enabled (see `persist`).
 #[derive(Default)]
 pub struct RepoData {
     pub name: String,
@@ -26,15 +29,68 @@ pub type RepoMap = Arc<RwLock<HashMap<String, RepoData>>>;
 
 /// The whole indexing engine: an in-memory, per-repo file store plus an on-demand trigram
 /// index. Built from scratch for xgrep-server — not a wrapper around an external search
-/// library or CLI tool. Storage is pure heap memory (Bytes/HashMap); nothing here reads or
-/// writes the filesystem.
+/// library or CLI tool. Storage is pure heap memory (Bytes/HashMap); the only thing that
+/// ever touches disk is the optional backup file described on `persist_path`.
 pub struct Store {
     pub repos: RepoMap,
+    /// Set from the `XGREP_PERSIST_PATH` env var. When set, the store's full contents are
+    /// written to this path (via [`persist::save`]) after every `build`/`unregister` call,
+    /// and loaded back from it (via [`persist::load`]) on startup if the file already
+    /// exists. Local filesystem only — deliberately not designed to be shared across
+    /// horizontally-scaled instances; each instance backs up to (and restores from) its own
+    /// local disk.
+    persist_path: Option<PathBuf>,
+    /// `false` while an on-disk snapshot is still being loaded at startup — see
+    /// [`Store::new_with_persistence`] and `handlers::health`, which reports `503` while
+    /// this is `false` instead of `200`. Always `true` when persistence is disabled.
+    pub ready: Arc<AtomicBool>,
 }
 
 impl Store {
     pub fn new() -> Self {
-        Self { repos: Arc::new(RwLock::new(HashMap::new())) }
+        Self {
+            repos: Arc::new(RwLock::new(HashMap::new())),
+            persist_path: None,
+            ready: Arc::new(AtomicBool::new(true)),
+        }
+    }
+
+    /// Enables disk backup/restore at `path`. If `path` already exists, the returned store
+    /// starts with `ready == false` and a background task is spawned to load it; `ready`
+    /// flips to `true` once that load attempt finishes (success or failure — a corrupt
+    /// backup file is logged, not fatal, so the process doesn't stay unhealthy forever over
+    /// a bad snapshot). If `path` doesn't exist yet (first run), `ready` starts `true`.
+    pub fn new_with_persistence(path: PathBuf) -> Arc<Self> {
+        let needs_load = path.exists();
+        let store = Arc::new(Self {
+            repos: Arc::new(RwLock::new(HashMap::new())),
+            persist_path: Some(path.clone()),
+            ready: Arc::new(AtomicBool::new(!needs_load)),
+        });
+
+        if needs_load {
+            let store = store.clone();
+            tokio::spawn(async move {
+                match persist::load(&store.repos, &path).await {
+                    Ok(count) => tracing::info!(repos = count, ?path, "loaded persisted store"),
+                    Err(error) => tracing::error!(?path, "failed to load persisted store: {error:#}"),
+                }
+                store.ready.store(true, Ordering::SeqCst);
+            });
+        }
+
+        store
+    }
+
+    /// Best-effort backup after a mutation that changes committed (built/unregistered)
+    /// state. Errors are logged, not propagated — persistence is a backup, not the source
+    /// of truth, so a write failure here shouldn't fail the request that triggered it.
+    async fn persist(&self) {
+        if let Some(path) = &self.persist_path {
+            if let Err(error) = persist::save(&self.repos, path).await {
+                tracing::error!(?path, "failed to persist store: {error:#}");
+            }
+        }
     }
 
     pub async fn put_file(&self, repo_id: &str, path: &str, content: Bytes) {
@@ -72,20 +128,27 @@ impl Store {
 
         let index = tokio::task::spawn_blocking(move || TrigramIndex::build(&docs)).await?;
 
-        let mut repos = self.repos.write().await;
-        if let Some(repo) = repos.get_mut(&repo_id) {
-            repo.name = name;
-            repo.version = version;
-            repo.org = org;
-            repo.branch = branch;
-            repo.file_order = file_order;
-            repo.index = Some(Arc::new(index));
+        {
+            let mut repos = self.repos.write().await;
+            if let Some(repo) = repos.get_mut(&repo_id) {
+                repo.name = name;
+                repo.version = version;
+                repo.org = org;
+                repo.branch = branch;
+                repo.file_order = file_order;
+                repo.index = Some(Arc::new(index));
+            }
         }
+        self.persist().await;
         Ok(())
     }
 
     pub async fn unregister(&self, repo_id: &str) -> bool {
-        self.repos.write().await.remove(repo_id).is_some()
+        let removed = self.repos.write().await.remove(repo_id).is_some();
+        if removed {
+            self.persist().await;
+        }
+        removed
     }
 
     /// Read back a single file's raw bytes, as pushed via `put_file` — used by the
