@@ -1,0 +1,16 @@
+services:
+  muck-local:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: muck-local
+    ports:
+      - "7777:7777"
+    environment:
+      PORT: 7777
+      MUCK_PERSIST_PATH: /data/muck-store.bin
+    volumes:
+      - muck-data:/data
+
+volumes:
+  muck-data:

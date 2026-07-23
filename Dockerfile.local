@@ -23,7 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends wget \
 
 COPY --from=build /src/target/release/muck-local /usr/local/bin/muck-local
 
+RUN mkdir -p /data
+
 ENV PORT=7777
+ENV MUCK_PERSIST_PATH=/data/muck-store.bin
+VOLUME ["/data"]
 EXPOSE 7777
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \

@@ -33,6 +33,15 @@ docker run -d --name muck -p 7777:7777 muck:local
 # With the embedded search UI
 docker build -f Dockerfile.local -t muck-local:local .
 docker run -d --name muck -p 7777:7777 muck-local:local
+
+# With the embedded UI and a persisted store on a named volume
+docker volume create muck-data
+docker run -d --name muck -p 7777:7777 \
+  -v muck-data:/data \
+  muck-local:local
+
+# Or with Docker Compose
+# docker compose up --build -d
 ```
 
 Confirm it's up:
@@ -90,6 +99,15 @@ docker run -d --name muck -p 7777:7777 \
   -e MUCK_PERSIST_PATH=/data/muck-store.bin \
   -v muck-data:/data \
   muck:local
+```
+
+For the embedded UI build, the same setting works:
+
+```sh
+docker run -d --name muck -p 7777:7777 \
+  -e MUCK_PERSIST_PATH=/data/muck-store.bin \
+  -v muck-data:/data \
+  muck-local:local
 ```
 
 - After every `build`/`unregister` call, the full store (every repo's files + metadata) is
