@@ -200,7 +200,8 @@ mod tests {
     #[test]
     #[ignore]
     fn trigram_index_actual_size() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("bench/.workdir/rails");
+        let corpus = std::env::var("TRIGRAM_DIAG_CORPUS").unwrap_or_else(|_| "rails".to_string());
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("bench/.workdir").join(corpus);
         let mut docs: Vec<Vec<u8>> = Vec::new();
         for entry in walkdir(&root) {
             if let Ok(bytes) = std::fs::read(&entry) {

@@ -278,6 +278,14 @@ impl Store {
                 repo.file_order = order;
                 repo.shard = Some(Arc::new(new_shard));
                 repo.pending.clear();
+                // `clear()` drops every entry's `Bytes`/`String`, but doesn't shrink the
+                // map's own backing table — for a large push burst (the whole point of
+                // `pending` is buffering a full push's worth of file content in the heap
+                // until `build()` runs, see the struct-level doc comment) that table can be
+                // large. `shrink_to_fit` actually deallocates it instead of just marking
+                // capacity unused, which matters for `trim_heap` below to have something to
+                // reclaim.
+                repo.pending.shrink_to_fit();
                 repo.shard_deleted.clear();
                 repo.index = Some(Arc::new(index));
             }
@@ -287,6 +295,17 @@ impl Store {
         if let Some(old_shard) = old_shard {
             old_shard.remove_file();
         }
+        // A large push burst (many files buffered in `pending` before this `build` call)
+        // just had all of that heap freed above. glibc's allocator doesn't return small/
+        // medium freed allocations to the OS on its own — they stay in the process's arena
+        // free lists, inflating resident memory (`anon`, specifically, not reclaimable page
+        // cache) for content that's now logically gone. Measured on the TypeScript corpus
+        // (81k files, 577MB pushed in one burst): without this, `anon` sat at ~1.07GB after
+        // build even though the trigram index measured ~32MB and the shard's own mmap'd
+        // pages are separately (and correctly) counted as reclaimable `file`, not `anon` —
+        // see `HANDOFF_STORAGE_OPTIMIZATION.md` for the full investigation. `malloc_trim`
+        // explicitly asks glibc to hand freed arena pages back to the kernel.
+        crate::alloc_trim::trim_heap();
         self.persist().await;
         Ok(())
     }

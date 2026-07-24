@@ -205,6 +205,67 @@ instead of hashing, which is a bigger structural change for a shrinking marginal
 the low-hanging "millions of tiny allocations" problem is already fixed. Left as a genuine
 option for later, not a gap that undermines today's numbers.
 
+## 2026-07-24: big-tier (TypeScript, 81k files) benchmark surfaced a second, unrelated memory
+## bug — found and fixed
+
+Ran the (now-fixed) benchmark suite against the `big` tier for the first time since these
+changes landed (`microsoft/TypeScript`, 81,366 files, 577MB). Results were much worse than the
+rails numbers suggested: **muck 1,529MB vs. Zoekt 69.8MB (~22x, worse than rails' ~9x)**, and
+muck lost outright on `literal-word` latency too (1,671ms vs. Zoekt's 273ms), not just memory.
+Cold-start also looked catastrophic (muck 53.8min vs. Zoekt 5.1min) but that turned out to be
+a benchmark-harness artifact, not a real regression: `container_ready`/`build` alone was only
+41s combined — `push` (81k individual HTTP PUT requests via the harness's curl-in-a-loop) ate
+the other 53 minutes. Confirmed by re-running the same push through a persistent
+`HttpClient` instead of one `curl` process per file (see the diagnostic commands in
+conversation history around this date if reproducing) — same 81,366 files, ~3 minutes instead
+of 53. **This is a real cost of the one-file-per-HTTP-request ingestion API at 80k+ file
+scale, independent of anything in this doc** — worth knowing about for real large-corpus
+deployments, but out of scope for a memory-footprint fix and not evidence anything here
+regressed.
+
+The 1,529MB memory number, though, was real and worth chasing. First check: was it the
+trigram index I'd just optimized? No — measured directly (same diagnostic-test technique as
+before, `TRIGRAM_DIAG_CORPUS=typescript cargo test --release trigram_index_actual_size --
+--ignored --nocapture`): TypeScript has only **132,890 distinct trigrams** (vs. rails'
+3.47 million, despite TypeScript being ~16x more files/bytes — a more repetitive corpus,
+apparently), so the index itself measured a tiny ~32MB. Accounting: ~32MB index + ~378MB
+shard (matches the on-disk shard size almost exactly, correctly `mmap`'d and counted as
+reclaimable `file`/`file_mapped` in `cgroup memory.stat`, not `anon`) leaves **~1.1GB
+unaccounted for** out of the 1,529MB total.
+
+Captured a live `cgroup memory.stat` on a container that had just pushed+built the full
+TypeScript corpus (started manually, outside the benchmark harness, specifically to keep it
+alive long enough to inspect before teardown): **`anon` alone was 1,068MB** — bigger than the
+shard and the index combined, and `anon` is real committed heap, not reclaimable page cache.
+
+Root cause: `Store::put_file` buffers every pushed file's raw bytes in an in-heap
+`HashMap<String, Bytes>` (`RepoData.pending`) until `build()` runs — a deliberate, documented
+choice from the original implementation ("start simple... only complicate if it's actually a
+problem," see the original plan above). For TypeScript, the whole 577MB corpus sits in that
+map at once before the one `build()` call fires. `build()` does clear it
+(`repo.pending.clear()`), but Rust's default allocator on Linux is glibc `malloc`, which for
+small/medium allocations (most individual source files, well under glibc's ~128KB `mmap`
+threshold) manages memory via a `brk`-based arena — freed memory goes on a free list for
+*this process's own reuse*, not back to the OS. A large, one-time burst allocation followed
+by "never needs that much heap again" is close to a worst case for that behavior.
+
+**Fix**: `src/alloc_trim.rs` — a `malloc_trim(0)` FFI call (Linux/glibc-specific, a no-op
+elsewhere), invoked from `store.rs`'s `build()` right after `repo.pending.clear()` (plus a
+`shrink_to_fit()` on the now-empty map, so there's an actual freed allocation for
+`malloc_trim` to hand back, not just cleared-but-still-allocated capacity).
+
+**Measured effect, re-running the identical push+build against a live container**: `anon`
+dropped from **1,068MB to 467MB** (56% reduction), and total container memory (`docker
+stats`) dropped from **1.02GiB to 470.8MB** (54% reduction). Confirmed search still returns
+correct results afterward (`malloc_trim` only affects free-list bookkeeping, not any live
+allocation). Covered by a smoke test (`alloc_trim::tests::trim_heap_does_not_panic` — the
+actual memory effect isn't observable in a fast unit test, only in a real allocator under
+real allocation pressure, which is what the live-container measurement above is for).
+
+This was found by actually running the bigger tier the benchmark suite already supported but
+this work hadn't exercised yet — a reminder that the rails-only numbers earlier in this doc,
+while real, weren't the whole story at a meaningfully larger scale.
+
 ## Why this matters (and why it's not "just switch to Zoekt")
 
 The user asked, after seeing these benchmark numbers, whether it even makes sense to keep

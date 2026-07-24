@@ -1,5 +1,6 @@
 //! Originally forked/ported from momokun7/xgrep (https://github.com/momokun7/xgrep).
 
+pub mod alloc_trim;
 pub mod globfilter;
 pub mod handlers;
 pub mod models;
